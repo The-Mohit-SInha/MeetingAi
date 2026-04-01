@@ -22,6 +22,7 @@ const stats = [
     trend: "up",
     icon: Video,
     gradient: "from-blue-500 to-cyan-500",
+    link: "/meetings",
   },
   {
     name: "Action Items",
@@ -30,6 +31,7 @@ const stats = [
     trend: "down",
     icon: CheckCircle2,
     gradient: "from-green-500 to-emerald-500",
+    link: "/actions",
   },
   {
     name: "Pending Tasks",
@@ -38,6 +40,7 @@ const stats = [
     trend: "up",
     icon: Clock,
     gradient: "from-orange-500 to-red-500",
+    link: "/actions",
   },
   {
     name: "Active Participants",
@@ -46,6 +49,7 @@ const stats = [
     trend: "up",
     icon: Users,
     gradient: "from-purple-500 to-pink-500",
+    link: "/participants",
   },
 ];
 
@@ -154,37 +158,45 @@ export function Overview() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
-          <motion.div
+          <Link
             key={stat.name}
-            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ delay: index * 0.1, duration: 0.5 }}
-            whileHover={{ y: -5, scale: 1.02 }}
-            className="relative group"
+            to={stat.link}
           >
-            {/* Glow Effect */}
-            <div className={`absolute -inset-1 bg-gradient-to-r ${stat.gradient} rounded-2xl opacity-0 group-hover:opacity-30 blur-xl transition-all duration-500`} />
-            
-            <div className="relative glass rounded-2xl p-6 shadow-xl">
-              <div className="flex items-center justify-between mb-4">
-                <motion.div
-                  whileHover={{ rotate: 360, scale: 1.2 }}
-                  transition={{ duration: 0.6 }}
-                  className={`bg-gradient-to-br ${stat.gradient} w-12 h-12 rounded-xl flex items-center justify-center shadow-lg`}
-                >
-                  <stat.icon className="w-6 h-6 text-white" />
-                </motion.div>
-                <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
-                  stat.trend === "up" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                }`}>
-                  {stat.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  {stat.change}
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: index * 0.1, duration: 0.5 }}
+              whileHover={{ y: -5, scale: 1.02 }}
+              className="relative group cursor-pointer"
+            >
+              {/* Glow Effect */}
+              <div className={`absolute -inset-1 bg-gradient-to-r ${stat.gradient} rounded-2xl opacity-0 group-hover:opacity-30 blur-xl transition-all duration-500`} />
+              
+              <div className="relative glass rounded-2xl p-6 shadow-xl">
+                <div className="flex items-center justify-between mb-4">
+                  <motion.div
+                    whileHover={{ rotate: 360, scale: 1.2 }}
+                    transition={{ duration: 0.6 }}
+                    className={`bg-gradient-to-br ${stat.gradient} w-12 h-12 rounded-xl flex items-center justify-center shadow-lg`}
+                  >
+                    <stat.icon className="w-6 h-6 text-white" />
+                  </motion.div>
+                  <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
+                    stat.trend === "up" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                  }`}>
+                    {stat.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {stat.change}
+                  </div>
+                </div>
+                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-sm text-gray-600 mt-1">{stat.name}</p>
+                <div className="flex items-center gap-1 text-sm text-blue-600 font-semibold mt-3 group-hover:gap-2 transition-all">
+                  View all
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-              <p className="text-sm text-gray-600 mt-1">{stat.name}</p>
-            </div>
-          </motion.div>
+            </motion.div>
+          </Link>
         ))}
       </div>
 
