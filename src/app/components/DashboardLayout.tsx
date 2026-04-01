@@ -12,9 +12,12 @@ import {
   Bell,
   Settings,
   Sparkles,
-  X
+  X,
+  Moon,
+  Sun
 } from "lucide-react";
 import { useState } from "react";
+import { useTheme } from "../context/ThemeContext";
 
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
@@ -28,11 +31,16 @@ const navigation = [
 export function DashboardLayout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="flex h-screen relative overflow-hidden">
-      {/* Animated Background Gradient */}
-      <div className="fixed inset-0 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 -z-10" />
+      {/* Animated Background Gradient - Light & Dark modes */}
+      <div className={`fixed inset-0 -z-10 ${
+        theme === 'dark' 
+          ? 'bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900' 
+          : 'bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50'
+      }`} />
       
       {/* Floating Blobs */}
       <motion.div
@@ -46,7 +54,11 @@ export function DashboardLayout() {
           repeat: Infinity,
           ease: "easeInOut",
         }}
-        className="fixed top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl -z-10"
+        className={`fixed top-0 right-0 w-96 h-96 rounded-full blur-3xl -z-10 ${
+          theme === 'dark'
+            ? 'bg-gradient-to-br from-blue-600/20 to-purple-600/20'
+            : 'bg-gradient-to-br from-blue-400/20 to-purple-400/20'
+        }`}
       />
       <motion.div
         animate={{
@@ -59,7 +71,11 @@ export function DashboardLayout() {
           repeat: Infinity,
           ease: "easeInOut",
         }}
-        className="fixed bottom-0 left-0 w-96 h-96 bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl -z-10"
+        className={`fixed bottom-0 left-0 w-96 h-96 rounded-full blur-3xl -z-10 ${
+          theme === 'dark'
+            ? 'bg-gradient-to-br from-pink-600/20 to-orange-600/20'
+            : 'bg-gradient-to-br from-pink-400/20 to-orange-400/20'
+        }`}
       />
 
       {/* Mobile sidebar overlay */}
@@ -149,14 +165,16 @@ export function DashboardLayout() {
 
           {/* Settings */}
           <div className="p-3 border-t border-white/20">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-gray-700 hover:bg-white/60 transition-colors group"
-            >
-              <Settings className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
-              <span className="font-semibold">Settings</span>
-            </motion.button>
+            <Link to="/settings">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-gray-700 hover:bg-white/60 transition-colors group"
+              >
+                <Settings className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                <span className="font-semibold">Settings</span>
+              </motion.button>
+            </Link>
           </div>
         </div>
       </aside>
@@ -187,31 +205,50 @@ export function DashboardLayout() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Theme Toggle Button */}
               <motion.button
-                whileHover={{ scale: 1.1 }}
+                whileHover={{ scale: 1.1, rotate: 180 }}
                 whileTap={{ scale: 0.9 }}
-                className="relative p-2 rounded-lg hover:bg-white/60 transition-colors"
+                onClick={toggleTheme}
+                className="p-2 rounded-lg hover:bg-white/60 transition-colors"
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               >
-                <Bell className="w-5 h-5 text-gray-700" />
-                <motion.span
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"
-                />
+                {theme === 'dark' ? (
+                  <Sun className="w-5 h-5 text-yellow-500" />
+                ) : (
+                  <Moon className="w-5 h-5 text-indigo-600" />
+                )}
               </motion.button>
               
-              <div className="flex items-center gap-3 pl-3 border-l border-white/30">
-                <motion.div
+              <Link to="/notifications">
+                <motion.button
                   whileHover={{ scale: 1.1 }}
-                  className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center shadow-lg cursor-pointer"
+                  whileTap={{ scale: 0.9 }}
+                  className="relative p-2 rounded-lg hover:bg-white/60 transition-colors"
                 >
-                  <span className="text-white text-sm font-bold">JD</span>
-                </motion.div>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-bold text-gray-900">John Doe</p>
-                  <p className="text-xs text-gray-600">Admin</p>
+                  <Bell className="w-5 h-5 text-gray-700" />
+                  <motion.span
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"
+                  />
+                </motion.button>
+              </Link>
+              
+              <Link to="/profile">
+                <div className="flex items-center gap-3 pl-3 border-l border-white/30">
+                  <motion.div
+                    whileHover={{ scale: 1.1 }}
+                    className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center shadow-lg cursor-pointer"
+                  >
+                    <span className="text-white text-sm font-bold">JD</span>
+                  </motion.div>
+                  <div className="hidden sm:block">
+                    <p className="text-sm font-bold text-gray-900">John Doe</p>
+                    <p className="text-xs text-gray-600">Admin</p>
+                  </div>
                 </div>
-              </div>
+              </Link>
             </div>
           </div>
         </header>

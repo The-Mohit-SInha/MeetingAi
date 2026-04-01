@@ -5,15 +5,16 @@ import {
   Line, 
   PieChart, 
   Pie, 
-  Cell,
+  Cell, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  Legend,
+  Legend, 
   ResponsiveContainer 
 } from "recharts";
-import { TrendingUp, TrendingDown, Video, CheckCircle2, Clock, Users } from "lucide-react";
+import { TrendingUp, Calendar, CheckSquare, Users, ArrowUp, ArrowDown } from "lucide-react";
+import { MeetingsTrendChart, ActionsPieChart, DurationBarChart, CompletionLineChart } from "./ChartComponents";
 
 const meetingsByMonth = [
   { month: "Oct", meetings: 28, actions: 45, id: "oct" },
@@ -58,7 +59,7 @@ const kpiData = [
     value: "147",
     change: "+12.5%",
     trend: "up",
-    icon: Video,
+    icon: CheckSquare,
     color: "bg-blue-500",
     period: "Last 30 days",
   },
@@ -67,7 +68,7 @@ const kpiData = [
     value: "48 min",
     change: "-5 min",
     trend: "down",
-    icon: Clock,
+    icon: Calendar,
     color: "bg-purple-500",
     period: "Last 30 days",
   },
@@ -76,7 +77,7 @@ const kpiData = [
     value: "229",
     change: "+18.2%",
     trend: "up",
-    icon: CheckCircle2,
+    icon: CheckSquare,
     color: "bg-green-500",
     period: "Last 30 days",
   },
@@ -112,9 +113,9 @@ export function Analytics() {
                 kpi.trend === "up" ? "text-green-600" : "text-blue-600"
               }`}>
                 {kpi.trend === "up" ? (
-                  <TrendingUp className="w-4 h-4" />
+                  <ArrowUp className="w-4 h-4" />
                 ) : (
-                  <TrendingDown className="w-4 h-4" />
+                  <ArrowDown className="w-4 h-4" />
                 )}
                 {kpi.change}
               </div>
@@ -134,37 +135,7 @@ export function Analytics() {
             <h3 className="font-semibold text-gray-900">Meetings & Actions Over Time</h3>
             <p className="text-sm text-gray-600 mt-1">Monthly trend for the past 6 months</p>
           </div>
-          <ResponsiveContainer width="100%" height={300} key="analytics-trend-chart">
-            <LineChart data={meetingsByMonth}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" key="trend-grid" />
-              <XAxis dataKey="month" stroke="#9ca3af" key="trend-xaxis" />
-              <YAxis stroke="#9ca3af" key="trend-yaxis" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#fff', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px' 
-                }} 
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="meetings" 
-                stroke="#3b82f6" 
-                strokeWidth={2} 
-                name="Meetings"
-                key="analytics-meetings-line"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="actions" 
-                stroke="#10b981" 
-                strokeWidth={2}
-                name="Actions"
-                key="analytics-actions-line"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <MeetingsTrendChart data={meetingsByMonth} />
         </div>
 
         {/* Action Items Status */}
@@ -173,25 +144,7 @@ export function Analytics() {
             <h3 className="font-semibold text-gray-900">Action Items by Status</h3>
             <p className="text-sm text-gray-600 mt-1">Distribution of all action items</p>
           </div>
-          <ResponsiveContainer width="100%" height={300} key="analytics-pie-chart-container">
-            <PieChart>
-              <Pie
-                data={actionsByStatus}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {actionsByStatus.map((entry, index) => (
-                  <Cell key={`cell-${entry.id}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          <ActionsPieChart data={actionsByStatus} />
           <div className="flex justify-center gap-6 mt-4">
             {actionsByStatus.map((item) => (
               <div key={item.id} className="flex items-center gap-2">
@@ -214,21 +167,7 @@ export function Analytics() {
             <h3 className="font-semibold text-gray-900">Meeting Duration Distribution</h3>
             <p className="text-sm text-gray-600 mt-1">Breakdown by meeting length</p>
           </div>
-          <ResponsiveContainer width="100%" height={300} key="duration-chart">
-            <BarChart data={meetingDuration}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" key="duration-grid" />
-              <XAxis dataKey="duration" stroke="#9ca3af" key="duration-xaxis" />
-              <YAxis stroke="#9ca3af" key="duration-yaxis" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#fff', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px' 
-                }} 
-              />
-              <Bar dataKey="count" fill="#8b5cf6" radius={[8, 8, 0, 0]} name="Meetings" key="duration-bar" />
-            </BarChart>
-          </ResponsiveContainer>
+          <DurationBarChart data={meetingDuration} />
         </div>
 
         {/* Task Completion Rate */}
@@ -237,29 +176,7 @@ export function Analytics() {
             <h3 className="font-semibold text-gray-900">Action Item Completion Rate</h3>
             <p className="text-sm text-gray-600 mt-1">Weekly completion percentage</p>
           </div>
-          <ResponsiveContainer width="100%" height={300} key="completion-chart">
-            <LineChart data={completionRate}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" key="completion-grid" />
-              <XAxis dataKey="week" stroke="#9ca3af" key="completion-xaxis" />
-              <YAxis stroke="#9ca3af" domain={[0, 100]} key="completion-yaxis" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#fff', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px' 
-                }}
-                formatter={(value) => `${value}%`}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="rate" 
-                stroke="#10b981" 
-                strokeWidth={3}
-                name="Completion Rate"
-                key="completion-rate-line"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <CompletionLineChart data={completionRate} />
         </div>
       </div>
 

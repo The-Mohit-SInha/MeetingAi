@@ -7,19 +7,25 @@ import { ActionItems } from "./components/ActionItems";
 import { Calendar } from "./components/Calendar";
 import { Analytics } from "./components/Analytics";
 import { Participants } from "./components/Participants";
+import { Profile } from "./components/Profile";
+import { Notifications } from "./components/Notifications";
+import { Settings } from "./components/Settings";
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    Component: DashboardLayout,
+    element: <DashboardLayout />,
     children: [
-      { index: true, Component: Overview },
-      { path: "meetings", Component: Meetings },
-      { path: "meetings/:id", Component: MeetingDetail },
-      { path: "actions", Component: ActionItems },
-      { path: "calendar", Component: Calendar },
-      { path: "analytics", Component: Analytics },
-      { path: "participants", Component: Participants },
+      { index: true, element: <Overview /> },
+      { path: "meetings", element: <Meetings /> },
+      { path: "meetings/:id", element: <MeetingDetail /> },
+      { path: "actions", element: <ActionItems /> },
+      { path: "calendar", element: <Calendar /> },
+      { path: "analytics", element: <Analytics /> },
+      { path: "participants", element: <Participants /> },
+      { path: "profile", element: <Profile /> },
+      { path: "notifications", element: <Notifications /> },
+      { path: "settings", element: <Settings /> },
     ],
   },
 ]);

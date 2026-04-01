@@ -1,6 +1,30 @@
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
+import { useEffect } from 'react';
+import { ThemeProvider } from './context/ThemeContext';
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  useEffect(() => {
+    // Suppress Recharts duplicate key warnings (known Recharts internal issue)
+    const originalError = console.error;
+    console.error = (...args: any[]) => {
+      if (
+        typeof args[0] === 'string' &&
+        args[0].includes('Encountered two children with the same key')
+      ) {
+        return; // Suppress this specific warning
+      }
+      originalError(...args);
+    };
+
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
+
+  return (
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>
+  );
 }

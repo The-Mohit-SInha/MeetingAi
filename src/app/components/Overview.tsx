@@ -12,7 +12,7 @@ import {
   ArrowRight,
   Sparkles
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart } from "recharts";
+import { MeetingsAreaChart, ActionsLineChart } from "./ChartComponents";
 
 const stats = [
   {
@@ -47,6 +47,23 @@ const stats = [
     icon: Users,
     gradient: "from-purple-500 to-pink-500",
   },
+];
+
+const meetingData = [
+  { day: "Mon", meetings: 4, id: "mon" },
+  { day: "Tue", meetings: 6, id: "tue" },
+  { day: "Wed", meetings: 3, id: "wed" },
+  { day: "Thu", meetings: 8, id: "thu" },
+  { day: "Fri", meetings: 5, id: "fri" },
+  { day: "Sat", meetings: 1, id: "sat" },
+  { day: "Sun", meetings: 0, id: "sun" },
+];
+
+const actionData = [
+  { week: "Week 1", created: 24, completed: 20, id: "wk1" },
+  { week: "Week 2", created: 32, completed: 28, id: "wk2" },
+  { week: "Week 3", created: 28, completed: 30, id: "wk3" },
+  { week: "Week 4", created: 35, completed: 32, id: "wk4" },
 ];
 
 const recentMeetings = [
@@ -116,23 +133,6 @@ const urgentActions = [
   },
 ];
 
-const meetingData = [
-  { day: "Mon", meetings: 4, id: "mon" },
-  { day: "Tue", meetings: 6, id: "tue" },
-  { day: "Wed", meetings: 3, id: "wed" },
-  { day: "Thu", meetings: 8, id: "thu" },
-  { day: "Fri", meetings: 5, id: "fri" },
-  { day: "Sat", meetings: 1, id: "sat" },
-  { day: "Sun", meetings: 0, id: "sun" },
-];
-
-const actionData = [
-  { week: "Week 1", created: 24, completed: 20, id: "wk1" },
-  { week: "Week 2", created: 32, completed: 28, id: "wk2" },
-  { week: "Week 3", created: 28, completed: 30, id: "wk3" },
-  { week: "Week 4", created: 35, completed: 32, id: "wk4" },
-];
-
 export function Overview() {
   return (
     <div className="space-y-6">
@@ -192,6 +192,7 @@ export function Overview() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Meetings This Week */}
         <motion.div
+          key="overview-chart-meetings"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.5, duration: 0.5 }}
@@ -201,32 +202,12 @@ export function Overview() {
             <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full" />
             Meetings This Week
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={meetingData}>
-              <defs>
-                <linearGradient id="colorMeetings" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="day" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '12px',
-                  backdropFilter: 'blur(10px)'
-                }} 
-              />
-              <Area type="monotone" dataKey="meetings" stroke="#3b82f6" fillOpacity={1} fill="url(#colorMeetings)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <MeetingsAreaChart data={meetingData} />
         </motion.div>
 
         {/* Action Items Trend */}
         <motion.div
+          key="overview-chart-actions"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.6, duration: 0.5 }}
@@ -236,23 +217,7 @@ export function Overview() {
             <div className="w-2 h-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full" />
             Action Items Trend
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={actionData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="week" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '12px',
-                  backdropFilter: 'blur(10px)'
-                }} 
-              />
-              <Line type="monotone" dataKey="created" stroke="#8b5cf6" strokeWidth={3} dot={{ fill: '#8b5cf6', r: 4 }} />
-              <Line type="monotone" dataKey="completed" stroke="#10b981" strokeWidth={3} dot={{ fill: '#10b981', r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          <ActionsLineChart data={actionData} />
         </motion.div>
       </div>
 
