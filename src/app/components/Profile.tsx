@@ -47,22 +47,28 @@ export function Profile() {
   const fetchProfile = async () => {
     if (!user) return;
 
+    console.log('🔍 [Profile] Fetching profile for user:', user.id, user.email);
+
     try {
       setLoading(true);
       const userData = await userAPI.getProfile(user.id);
 
+      console.log('✅ [Profile] Got user data:', userData);
+
       setProfile({
-        name: userData.name || user.email?.split('@')[0] || '',
-        email: userData.email || user.email || '',
+        name: userData.name || '',
+        email: user.email || '', // Always use auth user's email
         phone: userData.phone || '',
         location: userData.location || '',
         role: userData.role || '',
         department: userData.department || '',
-        joinDate: new Date(userData.join_date || userData.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+        joinDate: userData.join_date || userData.created_at ? new Date(userData.join_date || userData.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '',
         bio: userData.bio || ''
       });
     } catch (error) {
-      console.error("Error fetching profile:", error);
+      console.error("❌ [Profile] Error fetching profile:", error);
+      // Set at least the email from auth user
+      setProfile(prev => ({ ...prev, email: user.email || '' }));
     } finally {
       setLoading(false);
     }
@@ -71,13 +77,17 @@ export function Profile() {
   const fetchProfileStats = async () => {
     if (!user) return;
 
+    console.log('🔍 [Profile] Fetching stats for user:', user.id, user.email);
+
     try {
       // Fetch all meetings and count user's participation
-      const allMeetings = await meetingsAPI.getAll();
+      const allMeetings = await meetingsAPI.getAll(user.id);
+      console.log('📊 [Profile] Found meetings:', allMeetings.length);
+
       let userMeetingCount = 0;
 
       for (const meeting of allMeetings) {
-        const participants = await participantsAPI.getByMeeting(meeting.id);
+        const participants = await participantsAPI.getByMeeting(meeting.id, user.id);
         // Check if user is a participant (by name or email)
         const isParticipant = participants.some((p: any) => 
           p.participant_name?.toLowerCase().includes(user.email?.toLowerCase()) ||
@@ -88,8 +98,12 @@ export function Profile() {
         }
       }
 
+      console.log('👥 [Profile] User participated in meetings:', userMeetingCount);
+
       // Fetch all action items
-      const allActions = await actionItemsAPI.getAll();
+      const allActions = await actionItemsAPI.getAll(user.id);
+      console.log('✅ [Profile] Found action items:', allActions.length);
+
       const completedActions = allActions.filter((a: any) => a.status === 'completed').length;
       const totalActions = allActions.length;
       const completionRate = totalActions > 0 ? Math.round((completedActions / totalActions) * 100) : 0;
@@ -100,7 +114,7 @@ export function Profile() {
         completionRate,
       });
     } catch (error) {
-      console.error("Error fetching profile stats:", error);
+      console.error("❌ [Profile] Error fetching profile stats:", error);
       setProfileStats({ meetings: 0, actions: 0, completionRate: 0 });
     }
   };

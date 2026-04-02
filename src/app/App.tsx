@@ -17,6 +17,7 @@ import { Login } from "./components/Login";
 import { Signup } from "./components/Signup";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { DiagnosticPage } from "./components/DiagnosticPage";
+import { Admin } from "./components/Admin";
 
 export default function App() {
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function App() {
               <Route path="profile" element={<Profile />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="admin" element={<Admin />} />
             </Route>
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>

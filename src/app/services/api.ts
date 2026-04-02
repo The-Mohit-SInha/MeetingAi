@@ -416,32 +416,46 @@ export const settingsAPI = {
 
 export const participantsAPI = {
   async getAll(userId: string) {
-    // Get all unique participants from meetings
+    // Get all unique participants from meetings owned by this user
     const { data: meetings, error } = await supabase
       .from('meetings')
-      .select('meeting_participants(*)')
+      .select('id, meeting_participants(*)')
       .eq('user_id', userId);
 
     if (error) throw error;
 
-    // Aggregate participants
-    const participantsMap = new Map();
+    // Flatten and deduplicate participants
+    const participantsArray: any[] = [];
     meetings?.forEach((meeting: any) => {
       meeting.meeting_participants?.forEach((p: any) => {
-        if (!participantsMap.has(p.participant_name)) {
-          participantsMap.set(p.participant_name, {
-            name: p.participant_name,
-            email: p.participant_email,
-            role: p.role || 'Team Member',
-            meetings: 0,
-          });
-        }
-        const participant = participantsMap.get(p.participant_name);
-        participant.meetings += 1;
+        participantsArray.push(p);
       });
     });
 
-    return Array.from(participantsMap.values());
+    return participantsArray;
+  },
+
+  async getByMeeting(meetingId: string, userId: string) {
+    // First verify the meeting belongs to this user
+    const { data: meeting, error: meetingError } = await supabase
+      .from('meetings')
+      .select('id')
+      .eq('id', meetingId)
+      .eq('user_id', userId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return []; // Meeting doesn't exist or doesn't belong to user
+    }
+
+    // Get participants for this meeting
+    const { data, error } = await supabase
+      .from('meeting_participants')
+      .select('*')
+      .eq('meeting_id', meetingId);
+
+    if (error) throw error;
+    return data || [];
   },
 };
 

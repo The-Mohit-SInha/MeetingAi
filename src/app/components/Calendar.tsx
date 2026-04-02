@@ -22,6 +22,7 @@ const monthNames = ["January", "February", "March", "April", "May", "June", "Jul
 
 export function Calendar() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date(2026, 3, 1)); // April 2026
   const [view, setView] = useState<"month" | "week">("month");
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -36,13 +37,17 @@ export function Calendar() {
   });
 
   useEffect(() => {
-    fetchMeetings();
-  }, []);
+    if (user) {
+      fetchMeetings();
+    }
+  }, [user]);
 
   const fetchMeetings = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
-      const data = await meetingsAPI.getAll();
+      const data = await meetingsAPI.getAll(user.id);
       setMeetings(data.map((m: any) => ({
         id: m.id,
         title: m.title,

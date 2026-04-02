@@ -46,13 +46,17 @@ export function ActionItems() {
   const [actionItems, setActionItems] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchActionItems();
-  }, []);
+    if (user) {
+      fetchActionItems();
+    }
+  }, [user]);
 
   const fetchActionItems = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
-      const data = await actionItemsAPI.getAll();
+      const data = await actionItemsAPI.getAll(user.id);
       setActionItems(data.map((item: any) => ({
         ...item,
         task: item.title,

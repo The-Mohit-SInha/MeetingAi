@@ -48,18 +48,22 @@ export function Meetings() {
   });
 
   useEffect(() => {
-    fetchMeetings();
-  }, []);
+    if (user) {
+      fetchMeetings();
+    }
+  }, [user]);
 
   const fetchMeetings = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
-      const data = await meetingsAPI.getAll();
+      const data = await meetingsAPI.getAll(user.id);
 
       // Fetch participants for each meeting
       const meetingsWithParticipants = await Promise.all(
         data.map(async (meeting: any) => {
-          const participants = await participantsAPI.getByMeeting(meeting.id);
+          const participants = await participantsAPI.getByMeeting(meeting.id, user.id);
           return {
             ...meeting,
             participants: participants.map((p: any) => ({

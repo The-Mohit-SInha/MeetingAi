@@ -1,5 +1,6 @@
 import { motion } from "motion/react";
 import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { participantsAPI } from "../services/apiWrapper";
 import { 
@@ -16,18 +17,23 @@ import {
 
 export function Participants() {
   const { theme, compactMode } = useTheme();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [participants, setParticipants] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchParticipants();
-  }, []);
+    if (user) {
+      fetchParticipants();
+    }
+  }, [user]);
 
   const fetchParticipants = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
-      const data = await participantsAPI.getAll();
+      const data = await participantsAPI.getAll(user.id);
 
       // Group by participant name and aggregate stats
       const participantMap = new Map();
