@@ -214,7 +214,7 @@ export function Overview() {
             </h3>
             <CalendarIcon className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'} ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
           </div>
-          <div className={compactMode ? "h-[160px]" : "h-[200px]"}>
+          <div className={compactMode ? "h-[160px] w-full" : "h-[200px] w-full"}>
             <MeetingsAreaChart data={meetingData} />
           </div>
         </motion.div>
@@ -232,7 +232,7 @@ export function Overview() {
             </h3>
             <CheckCircle2 className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'} ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
           </div>
-          <div className={compactMode ? "h-[160px]" : "h-[200px]"}>
+          <div className={compactMode ? "h-[160px] w-full" : "h-[200px] w-full"}>
             <ActionsLineChart data={actionData} />
           </div>
         </motion.div>

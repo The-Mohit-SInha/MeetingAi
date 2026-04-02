@@ -38,22 +38,42 @@ export function DashboardLayout() {
   };
 
   return (
-    <div className="min-h-screen p-3 md:p-4" style={{ background: theme === 'dark' ? '#6B7280' : '#9CA3AF' }}>
+    <div 
+      className="min-h-screen p-3 md:p-4"
+      style={{ 
+        background: theme === 'dark' 
+          ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)' 
+          : 'linear-gradient(135deg, #f5f5dc 0%, #faf8f3 50%, #f0ece2 100%)' 
+      }}
+    >
       {/* Single Large Container Frame - Max height to fit viewport */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-[1600px] mx-auto rounded-[2rem] p-4 md:p-5 shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto"
+        className="max-w-[1600px] mx-auto rounded-[2rem] p-4 md:p-5 shadow-2xl max-h-[calc(100vh-2rem)] overflow-y-auto backdrop-blur-xl"
         style={{ 
           background: theme === 'dark' 
-            ? 'linear-gradient(135deg, #3C3C3E 0%, #2C2C2E 100%)' 
-            : 'linear-gradient(135deg, #FFF9E6 0%, #F5F3ED 50%, #FFF9E6 100%)' 
+            ? 'rgba(30, 30, 46, 0.6)' 
+            : 'rgba(255, 255, 255, 0.4)',
+          border: theme === 'dark' 
+            ? '1px solid rgba(255, 255, 255, 0.1)' 
+            : '1px solid rgba(210, 180, 140, 0.2)'
         }}
       >
         {/* Top Navigation Bar */}
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           {/* Logo */}
-          <div className={`px-5 py-1.5 rounded-full ${theme === 'dark' ? 'bg-white/10' : 'bg-white/70'} backdrop-blur-md border ${theme === 'dark' ? 'border-white/20' : 'border-gray-200/50'} shadow-sm`}>
+          <div 
+            className={`px-5 py-1.5 rounded-full backdrop-blur-md shadow-lg`}
+            style={{
+              background: theme === 'dark' 
+                ? 'rgba(255, 255, 255, 0.1)' 
+                : 'rgba(255, 255, 255, 0.4)',
+              border: theme === 'dark' 
+                ? '1px solid rgba(255, 255, 255, 0.2)' 
+                : '1px solid rgba(255, 255, 255, 0.5)'
+            }}
+          >
             <span className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Meeting AI</span>
           </div>
 

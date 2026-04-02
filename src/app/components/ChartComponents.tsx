@@ -1,138 +1,136 @@
-import { memo, useId } from "react";
+import { useTheme } from "../context/ThemeContext";
 import { 
+  ResponsiveContainer, 
   AreaChart, 
   Area, 
-  LineChart, 
-  Line, 
-  BarChart, 
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
   Legend,
-  ResponsiveContainer 
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar
 } from "recharts";
-import { useTheme } from "../context/ThemeContext";
+
+interface ChartProps {
+  data: any[];
+}
 
 // Wrapper components to isolate Recharts instances with unique IDs using React's useId
-export const MeetingsAreaChart = memo(({ data }: { data: any[] }) => {
-  const chartId = useId();
-  const gradientId = useId();
+export function MeetingsAreaChart({ data }: ChartProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  
+  const chartId = `meetings-area-${Date.now()}`;
+
   return (
-    <div key={chartId} style={{ width: '100%', height: '100%' }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
-          <XAxis 
-            dataKey="day" 
-            stroke={isDark ? '#9ca3af' : '#6b7280'} 
-            style={{ fontSize: '12px' }}
-          />
-          <YAxis 
-            stroke={isDark ? '#9ca3af' : '#6b7280'} 
-            style={{ fontSize: '12px' }}
-          />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)', 
-              border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-              borderRadius: '12px',
-              backdropFilter: 'blur(10px)',
-              color: isDark ? '#e5e7eb' : '#1f2937'
-            }} 
-          />
-          <Area 
-            type="monotone" 
-            dataKey="meetings" 
-            stroke="#3b82f6" 
-            fillOpacity={1} 
-            fill={`url(#${gradientId})`}
-            strokeWidth={2} 
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
+    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+      <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+        <defs>
+          <linearGradient id="meetingsGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+        <XAxis 
+          dataKey="day" 
+          stroke={isDark ? '#9ca3af' : '#6b7280'} 
+          style={{ fontSize: '12px' }}
+        />
+        <YAxis 
+          stroke={isDark ? '#9ca3af' : '#6b7280'} 
+          style={{ fontSize: '12px' }}
+        />
+        <Tooltip 
+          contentStyle={{ 
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)', 
+            border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+            borderRadius: '12px',
+            backdropFilter: 'blur(10px)',
+            color: isDark ? '#e5e7eb' : '#1f2937'
+          }} 
+        />
+        <Area 
+          type="monotone" 
+          dataKey="meetings" 
+          stroke="#3b82f6" 
+          fillOpacity={1} 
+          fill={`url(#meetingsGradient)`}
+          strokeWidth={2} 
+        />
+      </AreaChart>
+    </ResponsiveContainer>
   );
-});
+}
 
 MeetingsAreaChart.displayName = "MeetingsAreaChart";
 
-export const ActionsLineChart = memo(({ data }: { data: any[] }) => {
-  const chartId = useId();
+export function ActionsLineChart({ data }: ChartProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  
+  const chartId = `actions-line-${Date.now()}`;
+
   return (
-    <div key={chartId} style={{ width: '100%', height: '100%' }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
-          <XAxis 
-            dataKey="week" 
-            stroke={isDark ? '#9ca3af' : '#6b7280'} 
-            style={{ fontSize: '12px' }}
-          />
-          <YAxis 
-            stroke={isDark ? '#9ca3af' : '#6b7280'} 
-            style={{ fontSize: '12px' }}
-          />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)', 
-              border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-              borderRadius: '12px',
-              backdropFilter: 'blur(10px)',
-              color: isDark ? '#e5e7eb' : '#1f2937'
-            }} 
-          />
-          <Legend 
-            wrapperStyle={{ 
-              fontSize: '12px',
-              color: isDark ? '#e5e7eb' : '#1f2937'
-            }}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="created" 
-            stroke="#8b5cf6" 
-            strokeWidth={2} 
-            dot={{ fill: '#8b5cf6', r: 3 }}
-            name="Created"
-          />
-          <Line 
-            type="monotone" 
-            dataKey="completed" 
-            stroke="#10b981" 
-            strokeWidth={2} 
-            dot={{ fill: '#10b981', r: 3 }}
-            name="Completed"
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+      <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+        <XAxis 
+          dataKey="week" 
+          stroke={isDark ? '#9ca3af' : '#6b7280'} 
+          style={{ fontSize: '12px' }}
+        />
+        <YAxis 
+          stroke={isDark ? '#9ca3af' : '#6b7280'} 
+          style={{ fontSize: '12px' }}
+        />
+        <Tooltip 
+          contentStyle={{ 
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)', 
+            border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+            borderRadius: '12px',
+            backdropFilter: 'blur(10px)',
+            color: isDark ? '#e5e7eb' : '#1f2937'
+          }} 
+        />
+        <Legend 
+          wrapperStyle={{ 
+            fontSize: '12px',
+            color: isDark ? '#e5e7eb' : '#1f2937'
+          }}
+        />
+        <Line 
+          type="monotone" 
+          dataKey="created" 
+          stroke="#8b5cf6" 
+          strokeWidth={2} 
+          dot={{ fill: '#8b5cf6', r: 3 }}
+          name="Created"
+        />
+        <Line 
+          type="monotone" 
+          dataKey="completed" 
+          stroke="#10b981" 
+          strokeWidth={2} 
+          dot={{ fill: '#10b981', r: 3 }}
+          name="Completed"
+        />
+      </LineChart>
+    </ResponsiveContainer>
   );
-});
+}
 
 ActionsLineChart.displayName = "ActionsLineChart";
 
-export const MeetingsTrendChart = memo(({ data }: { data: any[] }) => {
-  const chartId = useId();
+export function MeetingsTrendChart({ data }: ChartProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  
+  const chartId = `meetings-trend-${Date.now()}`;
+
   return (
     <div key={chartId} style={{ width: '100%', height: 300 }}>
       <ResponsiveContainer width="100%" height={300}>
@@ -167,15 +165,15 @@ export const MeetingsTrendChart = memo(({ data }: { data: any[] }) => {
       </ResponsiveContainer>
     </div>
   );
-});
+}
 
 MeetingsTrendChart.displayName = "MeetingsTrendChart";
 
-export const ActionsPieChart = memo(({ data }: { data: any[] }) => {
-  const chartId = useId();
+export function ActionsPieChart({ data }: ChartProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  
+  const chartId = `actions-pie-${Date.now()}`;
+
   return (
     <div key={chartId} style={{ width: '100%', height: 300 }}>
       <ResponsiveContainer width="100%" height={300}>
@@ -207,15 +205,15 @@ export const ActionsPieChart = memo(({ data }: { data: any[] }) => {
       </ResponsiveContainer>
     </div>
   );
-});
+}
 
 ActionsPieChart.displayName = "ActionsPieChart";
 
-export const DurationBarChart = memo(({ data }: { data: any[] }) => {
-  const chartId = useId();
+export function DurationBarChart({ data }: ChartProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  
+  const chartId = `duration-bar-${Date.now()}`;
+
   return (
     <div key={chartId} style={{ width: '100%', height: 300 }}>
       <ResponsiveContainer width="100%" height={300}>
@@ -236,15 +234,15 @@ export const DurationBarChart = memo(({ data }: { data: any[] }) => {
       </ResponsiveContainer>
     </div>
   );
-});
+}
 
 DurationBarChart.displayName = "DurationBarChart";
 
-export const CompletionLineChart = memo(({ data }: { data: any[] }) => {
-  const chartId = useId();
+export function CompletionLineChart({ data }: ChartProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  
+  const chartId = `completion-line-${Date.now()}`;
+
   return (
     <div key={chartId} style={{ width: '100%', height: 300 }}>
       <ResponsiveContainer width="100%" height={300}>
@@ -272,6 +270,6 @@ export const CompletionLineChart = memo(({ data }: { data: any[] }) => {
       </ResponsiveContainer>
     </div>
   );
-});
+}
 
 CompletionLineChart.displayName = "CompletionLineChart";
