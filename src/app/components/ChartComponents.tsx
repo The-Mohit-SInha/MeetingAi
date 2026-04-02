@@ -132,38 +132,36 @@ export function MeetingsTrendChart({ data }: ChartProps) {
   const chartId = `meetings-trend-${Date.now()}`;
 
   return (
-    <div key={chartId} style={{ width: '100%', height: 300 }}>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
-          <XAxis dataKey="month" stroke={isDark ? '#9ca3af' : '#6b7280'} />
-          <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : '#fff', 
-              border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-              borderRadius: '8px',
-              color: isDark ? '#e5e7eb' : '#1f2937'
-            }} 
-          />
-          <Legend wrapperStyle={{ color: isDark ? '#e5e7eb' : '#1f2937' }} />
-          <Line 
-            type="monotone" 
-            dataKey="meetings" 
-            stroke="#3b82f6" 
-            strokeWidth={2} 
-            name="Meetings"
-          />
-          <Line 
-            type="monotone" 
-            dataKey="actions" 
-            stroke="#10b981" 
-            strokeWidth={2}
-            name="Actions"
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
+        <XAxis dataKey="month" stroke={isDark ? '#9ca3af' : '#6b7280'} />
+        <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} />
+        <Tooltip 
+          contentStyle={{ 
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : '#fff', 
+            border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+            borderRadius: '8px',
+            color: isDark ? '#e5e7eb' : '#1f2937'
+          }} 
+        />
+        <Legend wrapperStyle={{ color: isDark ? '#e5e7eb' : '#1f2937' }} />
+        <Line 
+          type="monotone" 
+          dataKey="meetings" 
+          stroke="#3b82f6" 
+          strokeWidth={2} 
+          name="Meetings"
+        />
+        <Line 
+          type="monotone" 
+          dataKey="actions" 
+          stroke="#10b981" 
+          strokeWidth={2}
+          name="Actions"
+        />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
 
