@@ -8,6 +8,8 @@ import {
   Award,
   Clock
 } from "lucide-react";
+import { motion } from "motion/react";
+import { useTheme } from "../context/ThemeContext";
 
 const participants = [
   {
@@ -163,173 +165,180 @@ const participants = [
 ];
 
 export function Participants() {
+  const { theme, compactMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
 
-  const departments = ["all", ...Array.from(new Set(participants.map(p => p.department)))];
-
-  const filteredParticipants = participants.filter((participant) => {
-    const matchesSearch = 
-      participant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      participant.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      participant.role.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDepartment = selectedDepartment === "all" || participant.department === selectedDepartment;
+  const filteredParticipants = participants.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          p.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDepartment = selectedDepartment === "all" || p.department === selectedDepartment;
     return matchesSearch && matchesDepartment;
   });
 
+  const departments = ["all", ...new Set(participants.map(p => p.department))];
+
   return (
-    <div className="p-6 space-y-6">
+    <div className={compactMode ? "space-y-4" : "space-y-6"}>
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-semibold text-gray-900">Participants</h1>
-        <p className="text-gray-600 mt-1">View and manage meeting participants</p>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h1 className={`${compactMode ? 'text-2xl' : 'text-3xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+          Participants
+        </h1>
+        <p className={`${compactMode ? 'text-sm' : 'mt-1'} ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+          Manage team members and track engagement
+        </p>
+      </motion.div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Participants</p>
-              <p className="text-3xl font-semibold text-gray-900 mt-1">{participants.length}</p>
-            </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-blue-600" />
+      {/* Search and Filter */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className={`glass-card ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-4'}`}
+      >
+        <div className={`flex items-center ${compactMode ? 'gap-3' : 'gap-4'} flex-wrap`}>
+          <div className="flex-1 min-w-[200px]">
+            <div className={`flex items-center gap-3 ${compactMode ? 'px-3 py-2' : 'px-4 py-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${
+              theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'
+            } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <Search className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'} ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+              <input
+                type="text"
+                placeholder="Search participants..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`flex-1 bg-transparent outline-none ${compactMode ? 'text-sm' : ''} ${
+                  theme === 'dark' ? 'text-white placeholder-gray-500' : 'text-gray-900 placeholder-gray-400'
+                }`}
+              />
             </div>
           </div>
-        </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Avg. Meetings per Person</p>
-              <p className="text-3xl font-semibold text-gray-900 mt-1">
-                {Math.round(participants.reduce((sum, p) => sum + p.stats.meetings, 0) / participants.length)}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <CalendarIcon className="w-6 h-6 text-purple-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Avg. Completion Rate</p>
-              <p className="text-3xl font-semibold text-gray-900 mt-1">
-                {Math.round(participants.reduce((sum, p) => sum + p.stats.completionRate, 0) / participants.length)}%
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <Award className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search participants..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <select
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
+          <div className="flex gap-2 flex-wrap">
             {departments.map((dept) => (
-              <option key={dept} value={dept}>
-                {dept === "all" ? "All Departments" : dept}
-              </option>
+              <motion.button
+                key={dept}
+                whileHover={{ scale: 1.05 }}
+                onClick={() => setSelectedDepartment(dept)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all capitalize ${
+                  selectedDepartment === dept
+                    ? "bg-gray-900 text-white"
+                    : theme === 'dark'
+                    ? "text-gray-300 hover:bg-gray-800"
+                    : "text-gray-600 hover:bg-white"
+                }`}
+              >
+                {dept}
+              </motion.button>
             ))}
-          </select>
+          </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Participants Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredParticipants.map((participant) => (
-          <div
+      <div className={`grid grid-cols-1 lg:grid-cols-2 ${compactMode ? 'gap-3' : 'gap-4'}`}>
+        {filteredParticipants.map((participant, index) => (
+          <motion.div
             key={participant.id}
-            className="bg-white rounded-xl border border-gray-200 p-6 hover:border-gray-300 hover:shadow-md transition-all"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 + index * 0.05 }}
+            whileHover={{ scale: 1.02 }}
+            className={`glass-card ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-6'}`}
           >
-            {/* Header */}
-            <div className="flex items-start gap-4 mb-4 pb-4 border-b border-gray-200">
-              <div className={`w-16 h-16 ${participant.color} rounded-full flex items-center justify-center flex-shrink-0`}>
-                <span className="text-white text-xl font-medium">{participant.avatar}</span>
+            <div className={`flex items-start ${compactMode ? 'gap-3 mb-3' : 'gap-4 mb-4'}`}>
+              <div className={`${compactMode ? 'w-12 h-12' : 'w-16 h-16'} ${participant.color} ${compactMode ? 'rounded-xl' : 'rounded-2xl'} flex items-center justify-center text-white ${compactMode ? 'text-lg' : 'text-xl'} font-bold shadow-lg`}>
+                {participant.avatar}
               </div>
-              
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-900 text-lg">{participant.name}</h3>
-                <p className="text-sm text-gray-600">{participant.role}</p>
-                <span className="inline-block mt-2 px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-md">
+              <div className="flex-1">
+                <h3 className={`${compactMode ? 'text-base' : 'text-lg'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {participant.name}
+                </h3>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {participant.role}
+                </p>
+                <div className={`px-3 py-1 bg-yellow-400 text-gray-900 ${compactMode ? 'rounded-lg' : 'rounded-full'} text-xs font-bold inline-block mt-2`}>
                   {participant.department}
-                </span>
+                </div>
               </div>
             </div>
 
-            {/* Contact Info */}
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Mail className="w-4 h-4" />
-                <a href={`mailto:${participant.email}`} className="hover:text-blue-600">
-                  {participant.email}
-                </a>
+            <div className={`${compactMode ? 'space-y-1 mb-3' : 'space-y-2 mb-4'}`}>
+              <div className={`flex items-center gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                <Mail className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                {participant.email}
               </div>
+              {participant.phone && (
+                <div className={`flex items-center gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <Phone className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                  {participant.phone}
+                </div>
+              )}
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-gray-600">Meetings</span>
-                  <CalendarIcon className="w-4 h-4 text-gray-400" />
+            <div className={`grid grid-cols-2 ${compactMode ? 'gap-2' : 'gap-3'}`}>
+              <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <CalendarIcon className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-blue-500`} />
+                  <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Meetings</span>
                 </div>
-                <p className="text-xl font-semibold text-gray-900">{participant.stats.meetings}</p>
+                <p className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {participant.stats.meetings}
+                </p>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-gray-600">Actions</span>
-                  <Award className="w-4 h-4 text-gray-400" />
+              <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Award className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-green-500`} />
+                  <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Actions</span>
                 </div>
-                <p className="text-xl font-semibold text-gray-900">{participant.stats.actions}</p>
+                <p className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {participant.stats.actions}
+                </p>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-gray-600">Completion</span>
-                  <TrendingUp className="w-4 h-4 text-gray-400" />
+              <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-purple-500`} />
+                  <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Completion</span>
                 </div>
-                <p className="text-xl font-semibold text-green-600">{participant.stats.completionRate}%</p>
+                <p className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {participant.stats.completionRate}%
+                </p>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-gray-600">Avg Response</span>
-                  <Clock className="w-4 h-4 text-gray-400" />
+              <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-orange-500`} />
+                  <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Response</span>
                 </div>
-                <p className="text-sm font-semibold text-gray-900">{participant.stats.avgResponseTime}</p>
+                <p className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {participant.stats.avgResponseTime}
+                </p>
               </div>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
 
       {filteredParticipants.length === 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <p className="text-gray-600">No participants found matching your search</p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="glass-card rounded-2xl p-12 text-center"
+        >
+          <Search className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+          <h3 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            No participants found
+          </h3>
+          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+            Try adjusting your search or filters
+          </p>
+        </motion.div>
       )}
     </div>
   );

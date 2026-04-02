@@ -10,9 +10,13 @@ import {
   Calendar as CalendarIcon,
   AlertCircle,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Play,
+  Pause,
+  Check
 } from "lucide-react";
 import { MeetingsAreaChart, ActionsLineChart } from "./ChartComponents";
+import { useTheme } from "../context/ThemeContext";
 
 const stats = [
   {
@@ -113,218 +117,265 @@ const recentMeetings = [
   },
 ];
 
-const urgentActions = [
+const priorityActions = [
   {
     id: 1,
-    task: "Update API documentation",
+    title: "Update API documentation",
     assignee: "Sarah Chen",
     dueDate: "2026-04-02",
     priority: "high",
+    status: "in-progress",
   },
   {
     id: 2,
-    task: "Review design mockups for v2.0",
+    title: "Review design mockups for v2.0",
     assignee: "Mike Johnson",
     dueDate: "2026-04-02",
     priority: "high",
+    status: "pending",
   },
   {
     id: 3,
-    task: "Schedule follow-up with Acme Corp",
+    title: "Schedule follow-up with Acme Corp",
     assignee: "Emma Wilson",
     dueDate: "2026-04-03",
     priority: "medium",
+    status: "completed",
   },
 ];
 
 export function Overview() {
+  const { theme, compactMode } = useTheme();
+
   return (
-    <div className="space-y-6">
+    <div className={compactMode ? "space-y-4" : "space-y-6"}>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
       >
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+        <h1 className={`${compactMode ? 'text-2xl' : 'text-3xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
           Dashboard Overview
         </h1>
-        <p className="text-gray-600 mt-1 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-purple-500" />
-          Welcome back! Here's what's happening with your meetings.
+        <p className={`${compactMode ? 'text-sm' : 'text-base mt-1'} ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+          Welcome back! Here's what's happening today
         </p>
       </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 ${compactMode ? 'gap-3' : 'gap-4'}`}>
         {stats.map((stat, index) => (
-          <Link
+          <motion.div
             key={stat.name}
-            to={stat.link}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 + index * 0.03 }}
+            whileHover={{ scale: 1.02 }}
           >
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ delay: index * 0.1, duration: 0.5 }}
-              whileHover={{ y: -5, scale: 1.02 }}
-              className="relative group cursor-pointer"
-            >
-              {/* Glow Effect */}
-              <div className={`absolute -inset-1 bg-gradient-to-r ${stat.gradient} rounded-2xl opacity-0 group-hover:opacity-30 blur-xl transition-all duration-500`} />
-              
-              <div className="relative glass rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center justify-between mb-4">
-                  <motion.div
-                    whileHover={{ rotate: 360, scale: 1.2 }}
-                    transition={{ duration: 0.6 }}
-                    className={`bg-gradient-to-br ${stat.gradient} w-12 h-12 rounded-xl flex items-center justify-center shadow-lg`}
-                  >
-                    <stat.icon className="w-6 h-6 text-white" />
-                  </motion.div>
-                  <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
-                    stat.trend === "up" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+            <Link to={stat.link}>
+              <div className={`glass-card ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-6'} cursor-pointer`}>
+                <div className={`flex items-start justify-between ${compactMode ? 'mb-2' : 'mb-3'}`}>
+                  <div className={`${compactMode ? 'p-2' : 'p-3'} rounded-lg bg-gradient-to-br ${stat.gradient} shadow-md`}>
+                    <stat.icon className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'} text-white`} />
+                  </div>
+                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                    stat.trend === "up" 
+                      ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" 
+                      : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                   }`}>
                     {stat.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                     {stat.change}
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-sm text-gray-600 mt-1">{stat.name}</p>
-                <div className="flex items-center gap-1 text-sm text-blue-600 font-semibold mt-3 group-hover:gap-2 transition-all">
-                  View all
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </div>
+                <p className={`text-xs font-medium ${compactMode ? 'mb-1' : 'mb-2'} ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {stat.name}
+                </p>
+                <p className={`${compactMode ? 'text-2xl' : 'text-3xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {stat.value}
+                </p>
               </div>
-            </motion.div>
-          </Link>
+            </Link>
+          </motion.div>
         ))}
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Meetings This Week */}
+      <div className={`grid grid-cols-1 lg:grid-cols-2 ${compactMode ? 'gap-3' : 'gap-6'}`}>
+        {/* Meetings Chart */}
         <motion.div
-          key="overview-chart-meetings"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.5, duration: 0.5 }}
-          className="glass rounded-2xl p-6 shadow-xl"
+          transition={{ delay: 0.25 }}
+          className={`glass-card ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-6'}`}
         >
-          <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full" />
-            Meetings This Week
-          </h3>
-          <MeetingsAreaChart data={meetingData} />
+          <div className={`flex items-center justify-between ${compactMode ? 'mb-3' : 'mb-4'}`}>
+            <h3 className={`${compactMode ? 'text-sm' : 'text-base'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              Weekly Meetings
+            </h3>
+            <CalendarIcon className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'} ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
+          </div>
+          <div className={compactMode ? "h-[160px]" : "h-[200px]"}>
+            <MeetingsAreaChart data={meetingData} />
+          </div>
         </motion.div>
 
-        {/* Action Items Trend */}
+        {/* Actions Chart */}
         <motion.div
-          key="overview-chart-actions"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.6, duration: 0.5 }}
-          className="glass rounded-2xl p-6 shadow-xl"
+          transition={{ delay: 0.3 }}
+          className={`glass-card ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-6'}`}
         >
-          <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <div className="w-2 h-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full" />
-            Action Items Trend
-          </h3>
-          <ActionsLineChart data={actionData} />
+          <div className={`flex items-center justify-between ${compactMode ? 'mb-3' : 'mb-4'}`}>
+            <h3 className={`${compactMode ? 'text-sm' : 'text-base'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              Action Items Trend
+            </h3>
+            <CheckCircle2 className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'} ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
+          </div>
+          <div className={compactMode ? "h-[160px]" : "h-[200px]"}>
+            <ActionsLineChart data={actionData} />
+          </div>
         </motion.div>
       </div>
 
-      {/* Recent Meetings & Urgent Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Recent Activity Row */}
+      <div className={`grid grid-cols-1 lg:grid-cols-2 ${compactMode ? 'gap-3' : 'gap-6'}`}>
         {/* Recent Meetings */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7, duration: 0.5 }}
-          className="lg:col-span-2 glass rounded-2xl p-6 shadow-xl"
+          transition={{ delay: 0.35 }}
+          className={`glass-card ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-6'}`}
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-gray-900">Recent Meetings</h3>
-            <Link to="/meetings" className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-semibold group">
-              View all
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          <div className={`flex items-center justify-between ${compactMode ? 'mb-3' : 'mb-4'}`}>
+            <h3 className={`${compactMode ? 'text-sm' : 'text-base'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              Recent Meetings
+            </h3>
+            <Link to="/meetings">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} flex items-center gap-1`}
+              >
+                View all
+                <ArrowRight className="w-3 h-3" />
+              </motion.button>
             </Link>
           </div>
-          <div className="space-y-3">
-            {recentMeetings.map((meeting, index) => (
-              <motion.div
-                key={meeting.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.8 + index * 0.1 }}
-                whileHover={{ x: 5, scale: 1.01 }}
-              >
-                <Link
-                  to={`/meetings/${meeting.id}`}
-                  className="block p-4 bg-white/60 rounded-xl hover:bg-white transition-all border border-white/50 hover:shadow-lg"
+          <div className={compactMode ? "space-y-2" : "space-y-3"}>
+            {recentMeetings.slice(0, 3).map((meeting, index) => (
+              <Link key={meeting.id} to={`/meetings/${meeting.id}`}>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 + index * 0.05 }}
+                  whileHover={{ scale: 1.02 }}
+                  className={`${compactMode ? 'p-3 rounded-lg' : 'p-4 rounded-xl'} cursor-pointer ${
+                    theme === 'dark' ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white/80 hover:bg-white'
+                  } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-gray-900 truncate">{meeting.title}</h4>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <CalendarIcon className="w-4 h-4" />
-                          {meeting.date}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {meeting.duration}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Users className="w-4 h-4" />
-                          {meeting.participants}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <div className={`${compactMode ? 'p-1.5' : 'p-2'} rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex-shrink-0`}>
+                        <Video className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-white`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className={`${compactMode ? 'text-sm' : 'text-base'} font-semibold mb-1 truncate ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                          {meeting.title}
+                        </h4>
+                        <div className={`flex items-center gap-2 text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          <span>{meeting.time}</span>
+                          <span>•</span>
+                          <span>{meeting.duration}</span>
                         </div>
                       </div>
                     </div>
-                    <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-bold rounded-full">
-                      {meeting.actions} actions
-                    </span>
+                    <div className="flex items-center gap-2 text-xs flex-shrink-0">
+                      <span className={`flex items-center gap-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                        <Users className="w-3 h-3" />
+                        {meeting.participants}
+                      </span>
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full text-xs font-bold">
+                        {meeting.actions}
+                      </span>
+                    </div>
                   </div>
-                </Link>
-              </motion.div>
+                </motion.div>
+              </Link>
             ))}
           </div>
         </motion.div>
 
-        {/* Urgent Actions */}
+        {/* Recent Actions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8, duration: 0.5 }}
-          className="glass rounded-2xl p-6 shadow-xl"
+          transition={{ delay: 0.4 }}
+          className={`glass-card ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-6'}`}
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-gray-900">Urgent Actions</h3>
-            <Link to="/actions" className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-semibold group">
-              View all
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          <div className={`flex items-center justify-between ${compactMode ? 'mb-3' : 'mb-4'}`}>
+            <h3 className={`${compactMode ? 'text-sm' : 'text-base'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              Priority Actions
+            </h3>
+            <Link to="/actions">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} flex items-center gap-1`}
+              >
+                View all
+                <ArrowRight className="w-3 h-3" />
+              </motion.button>
             </Link>
           </div>
-          <div className="space-y-3">
-            {urgentActions.map((action, index) => (
-              <motion.div
-                key={action.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.9 + index * 0.1 }}
-                whileHover={{ scale: 1.02 }}
-                className="p-3 bg-white/60 rounded-xl border border-white/50"
-              >
-                <div className="flex items-start gap-2">
-                  <AlertCircle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                    action.priority === "high" ? "text-red-500" : "text-orange-500"
-                  }`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">{action.task}</p>
-                    <p className="text-xs text-gray-600 mt-1">{action.assignee}</p>
-                    <p className="text-xs text-gray-500 mt-1">Due: {action.dueDate}</p>
+          <div className={compactMode ? "space-y-2" : "space-y-3"}>
+            {priorityActions.slice(0, 3).map((action, index) => (
+              <Link key={action.id} to={`/actions`}>
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.45 + index * 0.05 }}
+                  whileHover={{ scale: 1.02 }}
+                  className={`${compactMode ? 'p-3 rounded-lg' : 'p-4 rounded-xl'} cursor-pointer ${
+                    theme === 'dark' ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white/80 hover:bg-white'
+                  } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <div className={`mt-0.5 ${
+                      action.status === 'completed' 
+                        ? 'text-green-500' 
+                        : action.status === 'in-progress' 
+                        ? 'text-blue-500' 
+                        : 'text-yellow-500'
+                    }`}>
+                      {action.status === 'completed' ? (
+                        <Check className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'}`} />
+                      ) : action.status === 'in-progress' ? (
+                        <Play className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'}`} />
+                      ) : (
+                        <Clock className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'}`} />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className={`${compactMode ? 'text-sm' : 'text-base'} font-semibold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        {action.title}
+                      </h4>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {action.assignee}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                          action.priority === 'high'
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                            : action.priority === 'medium'
+                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                        }`}>
+                          {action.priority}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </motion.div>
+                </motion.div>
+              </Link>
             ))}
           </div>
         </motion.div>

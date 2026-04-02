@@ -6,18 +6,25 @@ interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
+  compactMode: boolean;
+  toggleCompactMode: () => void;
+  setCompactMode: (compact: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
-    // Check localStorage first, default to light mode if not set
+    // Always default to light mode
+    // Check localStorage, but default to 'light' if not set or invalid
     const stored = localStorage.getItem('theme') as Theme;
-    if (stored) return stored;
-    
-    // Default to light mode for first-time visitors
-    return 'light';
+    return (stored === 'dark' || stored === 'light') ? stored : 'light';
+  });
+
+  const [compactMode, setCompactModeState] = useState<boolean>(() => {
+    // Default to compact mode ON
+    const stored = localStorage.getItem('compactMode');
+    return stored === null ? true : stored === 'true';
   });
 
   useEffect(() => {
@@ -44,6 +51,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timeout);
   }, [theme]);
 
+  useEffect(() => {
+    // Save compact mode to localStorage
+    localStorage.setItem('compactMode', compactMode.toString());
+  }, [compactMode]);
+
   const toggleTheme = () => {
     setThemeState(prev => prev === 'light' ? 'dark' : 'light');
   };
@@ -52,8 +64,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setThemeState(newTheme);
   };
 
+  const toggleCompactMode = () => {
+    setCompactModeState(prev => !prev);
+  };
+
+  const setCompactMode = (compact: boolean) => {
+    setCompactModeState(compact);
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme, compactMode, toggleCompactMode, setCompactMode }}>
       {children}
     </ThemeContext.Provider>
   );

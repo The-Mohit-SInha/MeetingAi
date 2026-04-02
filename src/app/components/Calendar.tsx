@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Video, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Video, Users, X, Clock, Calendar as CalendarIcon } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { useTheme } from "../context/ThemeContext";
+import { Link } from "react-router";
 
 const meetings = [
   { id: 1, title: "Team Standup", date: "2026-04-01", time: "9:00 AM", duration: "15 min", participants: 8, type: "recurring" },
@@ -23,8 +26,17 @@ const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export function Calendar() {
+  const { theme } = useTheme();
   const [currentDate, setCurrentDate] = useState(new Date(2026, 3, 1)); // April 2026
   const [view, setView] = useState<"month" | "week">("month");
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [meetingForm, setMeetingForm] = useState({
+    title: "",
+    date: "",
+    time: "",
+    duration: "30",
+    participants: "",
+  });
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -76,6 +88,33 @@ export function Calendar() {
     setCurrentDate(new Date(year, month + 1, 1));
   };
 
+  const previousWeek = () => {
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() - 7);
+    setCurrentDate(newDate);
+  };
+
+  const nextWeek = () => {
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() + 7);
+    setCurrentDate(newDate);
+  };
+
+  // Get the current week days
+  const getWeekDays = () => {
+    const startOfWeek = new Date(currentDate);
+    const day = startOfWeek.getDay();
+    startOfWeek.setDate(startOfWeek.getDate() - day);
+    
+    const weekDays = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(date.getDate() + i);
+      weekDays.push(date);
+    }
+    return weekDays;
+  };
+
   const today = new Date();
   const isToday = (date: Date) => {
     return date.getDate() === today.getDate() &&
@@ -84,174 +123,342 @@ export function Calendar() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+      >
         <div>
-          <h1 className="text-3xl font-semibold text-gray-900">Calendar</h1>
-          <p className="text-gray-600 mt-1">View and manage your meeting schedule</p>
+          <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            Calendar
+          </h1>
+          <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+            View and manage your meeting schedule
+          </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-          <Video className="w-5 h-5" />
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:shadow-lg transition-all text-sm"
+          onClick={() => setShowScheduleModal(true)}
+        >
+          <Video className="w-4 h-4" />
           Schedule Meeting
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
       {/* Calendar Controls */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {monthNames[month]} {year}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="glass-card rounded-xl p-4"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={view === "month" ? previousMonth : previousWeek}
+              className={`p-2 rounded-xl ${ theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-white'
+              } transition-colors`}
+            >
+              <ChevronLeft className={`w-6 h-6 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`} />
+            </motion.button>
+            
+            <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              {view === "month" ? `${monthNames[month]} ${year}` : `Week of ${monthNames[month]} ${currentDate.getDate()}, ${year}`}
             </h2>
-            <div className="flex gap-1">
-              <button
-                onClick={previousMonth}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5 text-gray-600" />
-              </button>
-              <button
-                onClick={nextMonth}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ChevronRight className="w-5 h-5 text-gray-600" />
-              </button>
-            </div>
+            
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={view === "month" ? nextMonth : nextWeek}
+              className={`p-2 rounded-xl ${
+                theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-white'
+              } transition-colors`}
+            >
+              <ChevronRight className={`w-6 h-6 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`} />
+            </motion.button>
           </div>
 
           <div className="flex gap-2">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
               onClick={() => setView("month")}
-              className={`px-4 py-2 rounded-lg transition-colors ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                 view === "month"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-gray-900 text-white"
+                  : theme === 'dark'
+                  ? "text-gray-300 hover:bg-gray-800"
+                  : "text-gray-600 hover:bg-white"
               }`}
             >
               Month
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
               onClick={() => setView("week")}
-              className={`px-4 py-2 rounded-lg transition-colors ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                 view === "week"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-gray-900 text-white"
+                  : theme === 'dark'
+                  ? "text-gray-300 hover:bg-gray-800"
+                  : "text-gray-600 hover:bg-white"
               }`}
             >
               Week
-            </button>
+            </motion.button>
           </div>
         </div>
-      </div>
 
-      {/* Calendar Grid */}
-      {view === "month" && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {/* Calendar Grid */}
+        <div className="grid grid-cols-7 gap-2">
           {/* Day Headers */}
-          <div className="grid grid-cols-7 border-b border-gray-200">
-            {daysOfWeek.map((day) => (
-              <div
-                key={day}
-                className="p-3 text-center font-semibold text-gray-700 bg-gray-50"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar Days */}
-          <div className="grid grid-cols-7">
-            {calendarDays.map((dayInfo, idx) => {
-              const dayMeetings = getMeetingsForDate(dayInfo.date);
-              const isTodayDate = isToday(dayInfo.date);
-
-              return (
-                <div
-                  key={idx}
-                  className={`min-h-32 border-r border-b border-gray-200 p-2 ${
-                    !dayInfo.isCurrentMonth ? "bg-gray-50" : "bg-white"
-                  } ${isTodayDate ? "bg-blue-50" : ""}`}
-                >
-                  <div className={`font-medium mb-2 ${
-                    !dayInfo.isCurrentMonth
-                      ? "text-gray-400"
-                      : isTodayDate
-                      ? "text-blue-600"
-                      : "text-gray-900"
-                  }`}>
-                    {isTodayDate && (
-                      <span className="inline-flex items-center justify-center w-7 h-7 bg-blue-600 text-white rounded-full text-sm">
-                        {dayInfo.day}
-                      </span>
-                    )}
-                    {!isTodayDate && dayInfo.day}
-                  </div>
-
-                  <div className="space-y-1">
-                    {dayMeetings.slice(0, 3).map((meeting) => (
-                      <div
-                        key={meeting.id}
-                        className={`px-2 py-1 rounded text-xs truncate cursor-pointer ${
-                          meeting.type === "recurring"
-                            ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                            : "bg-purple-100 text-purple-700 hover:bg-purple-200"
-                        }`}
-                        title={meeting.title}
-                      >
-                        <div className="font-medium truncate">{meeting.time}</div>
-                        <div className="truncate">{meeting.title}</div>
-                      </div>
-                    ))}
-                    {dayMeetings.length > 3 && (
-                      <div className="text-xs text-gray-600 pl-2">
-                        +{dayMeetings.length - 3} more
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Upcoming Meetings List */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Upcoming Meetings</h3>
-        <div className="space-y-3">
-          {meetings.slice(0, 8).map((meeting) => (
+          {daysOfWeek.map((day) => (
             <div
-              key={meeting.id}
-              className="flex items-center gap-4 p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+              key={day}
+              className={`text-center py-3 text-sm font-semibold ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+              }`}
             >
-              <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                meeting.type === "recurring" ? "bg-blue-100" : "bg-purple-100"
-              }`}>
-                <Video className={`w-6 h-6 ${
-                  meeting.type === "recurring" ? "text-blue-600" : "text-purple-600"
-                }`} />
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <h4 className="font-medium text-gray-900">{meeting.title}</h4>
-                <div className="flex items-center gap-3 mt-1 text-sm text-gray-600">
-                  <span>{meeting.date}</span>
-                  <span>•</span>
-                  <span>{meeting.time}</span>
-                  <span>•</span>
-                  <span>{meeting.duration}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Users className="w-4 h-4" />
-                <span>{meeting.participants}</span>
-              </div>
+              {day}
             </div>
           ))}
+
+          {/* Calendar Days */}
+          {calendarDays.map((calDay, index) => {
+            const dayMeetings = getMeetingsForDate(calDay.date);
+            const isTodayDate = isToday(calDay.date);
+
+            return (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: index * 0.01 }}
+                className={`min-h-[100px] p-2 rounded-xl ${
+                  calDay.isCurrentMonth
+                    ? theme === 'dark'
+                      ? 'bg-gray-800/50'
+                      : 'bg-white/80'
+                    : theme === 'dark'
+                    ? 'bg-gray-900/30'
+                    : 'bg-gray-100/50'
+                } ${
+                  isTodayDate
+                    ? 'ring-2 ring-yellow-400'
+                    : ''
+                } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}
+              >
+                <div className={`text-sm font-semibold mb-2 ${
+                  calDay.isCurrentMonth
+                    ? isTodayDate
+                      ? 'text-yellow-400'
+                      : theme === 'dark'
+                      ? 'text-white'
+                      : 'text-gray-900'
+                    : theme === 'dark'
+                    ? 'text-gray-600'
+                    : 'text-gray-400'
+                }`}>
+                  {calDay.day}
+                </div>
+
+                <div className="space-y-1">
+                  {dayMeetings.slice(0, 2).map((meeting) => (
+                    <Link key={meeting.id} to={`/meetings/${meeting.id}`}>
+                      <motion.div
+                        whileHover={{ scale: 1.05 }}
+                        className={`p-1.5 rounded-lg text-xs cursor-pointer ${
+                          meeting.type === 'recurring'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-purple-500 text-white'
+                        }`}
+                      >
+                        <div className="font-semibold truncate">{meeting.title}</div>
+                        <div className="text-[10px] opacity-90">{meeting.time}</div>
+                      </motion.div>
+                    </Link>
+                  ))}
+                  {dayMeetings.length > 2 && (
+                    <div className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      +{dayMeetings.length - 2} more
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
-      </div>
+      </motion.div>
+
+      {/* Upcoming Meetings List */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="glass-card rounded-2xl p-6"
+      >
+        <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+          Upcoming Meetings
+        </h3>
+        <div className="space-y-3">
+          {meetings.slice(0, 5).map((meeting, index) => (
+            <Link key={meeting.id} to={`/meetings/${meeting.id}`}>
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 + index * 0.05 }}
+                whileHover={{ scale: 1.02 }}
+                className={`p-4 rounded-xl cursor-pointer ${
+                  theme === 'dark' ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white/80 hover:bg-white'
+                } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    <div className={`p-2 rounded-xl ${
+                      meeting.type === 'recurring' 
+                        ? 'bg-gradient-to-br from-blue-500 to-purple-600' 
+                        : 'bg-gradient-to-br from-green-500 to-emerald-600'
+                    }`}>
+                      <Video className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className={`font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        {meeting.title}
+                      </h4>
+                      <div className={`flex items-center gap-4 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <span>{meeting.date}</span>
+                        <span>{meeting.time}</span>
+                        <span>{meeting.duration}</span>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-4 h-4" />
+                          {meeting.participants}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                    meeting.type === 'recurring'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                      : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                  }`}>
+                    {meeting.type}
+                  </div>
+                </div>
+              </motion.div>
+            </Link>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Schedule Meeting Modal */}
+      <AnimatePresence>
+        {showScheduleModal && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg w-full max-w-2xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Schedule Meeting
+                </h2>
+                <button
+                  className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white"
+                  onClick={() => setShowScheduleModal(false)}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      value={meetingForm.title}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, title: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      value={meetingForm.date}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, date: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Time
+                    </label>
+                    <input
+                      type="time"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      value={meetingForm.time}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, time: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Duration
+                    </label>
+                    <select
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      value={meetingForm.duration}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, duration: e.target.value })}
+                    >
+                      <option value="15">15 min</option>
+                      <option value="30">30 min</option>
+                      <option value="45">45 min</option>
+                      <option value="60">60 min</option>
+                      <option value="90">90 min</option>
+                      <option value="120">120 min</option>
+                      <option value="180">180 min</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Participants
+                    </label>
+                    <input
+                      type="number"
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      value={meetingForm.participants}
+                      onChange={(e) => setMeetingForm({ ...meetingForm, participants: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    className="w-full px-4 py-2 bg-blue-500 text-white rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  >
+                    Schedule Meeting
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

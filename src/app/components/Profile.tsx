@@ -10,9 +10,11 @@ import {
   Edit,
   Camera,
   Save,
-  X
+  X,
+  Edit2
 } from "lucide-react";
 import { useState } from "react";
+import { useTheme } from "../context/ThemeContext";
 
 const userStats = [
   { label: "Meetings Attended", value: "147", icon: CalendarIcon, gradient: "from-blue-500 to-cyan-500" },
@@ -29,6 +31,7 @@ const activityLog = [
 ];
 
 export function Profile() {
+  const { theme, compactMode } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
     name: "John Doe",
@@ -42,17 +45,16 @@ export function Profile() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className={compactMode ? "space-y-4" : "space-y-6"}>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
       >
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+        <h1 className={`${compactMode ? 'text-2xl' : 'text-3xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
           My Profile
         </h1>
-        <p className="text-gray-600 mt-1">
+        <p className={`${compactMode ? 'text-sm' : 'mt-1'} ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
           Manage your account information and preferences
         </p>
       </motion.div>
@@ -62,236 +64,205 @@ export function Profile() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="glass rounded-2xl shadow-xl overflow-hidden"
+        className={`glass-card ${compactMode ? 'rounded-xl' : 'rounded-2xl'} overflow-hidden`}
       >
         {/* Cover Image */}
-        <div className="h-32 bg-gradient-to-r from-blue-500 via-purple-600 to-pink-500 relative">
+        <div className={`${compactMode ? 'h-24' : 'h-32'} bg-gradient-to-r from-blue-500 via-purple-600 to-pink-500 relative`}>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="absolute bottom-4 right-4 p-2 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-colors"
+            className={`absolute ${compactMode ? 'bottom-2 right-2 p-1.5' : 'bottom-4 right-4 p-2'} bg-white/20 backdrop-blur-sm ${compactMode ? 'rounded' : 'rounded-lg'} hover:bg-white/30 transition-colors`}
           >
-            <Camera className="w-4 h-4 text-white" />
+            <Camera className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-white`} />
           </motion.button>
         </div>
 
-        <div className="px-8 pb-8">
+        <div className={compactMode ? "px-4 pb-4" : "px-8 pb-8"}>
           {/* Avatar & Edit Button */}
-          <div className="flex items-end justify-between -mt-12 mb-6">
+          <div className={`flex items-end justify-between ${compactMode ? '-mt-8 mb-3' : '-mt-12 mb-6'}`}>
             <div className="relative">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="w-24 h-24 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-2xl border-4 border-white cursor-pointer"
-              >
-                <span className="text-white text-3xl font-bold">JD</span>
-              </motion.div>
+              <div className={`${compactMode ? 'w-16 h-16 text-xl' : 'w-24 h-24 text-3xl'} bg-gradient-to-br from-green-400 to-blue-500 ${compactMode ? 'rounded-xl' : 'rounded-2xl'} flex items-center justify-center text-white font-bold shadow-xl ring-4 ${theme === 'dark' ? 'ring-gray-800' : 'ring-white'}`}>
+                JD
+              </div>
               <motion.button
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                className="absolute bottom-0 right-0 p-2 bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow"
+                className={`absolute bottom-0 right-0 ${compactMode ? 'p-1' : 'p-1.5'} bg-gradient-to-br from-blue-500 to-purple-600 ${compactMode ? 'rounded' : 'rounded-lg'} shadow-lg`}
               >
-                <Camera className="w-4 h-4 text-gray-700" />
+                <Camera className={`${compactMode ? 'w-2.5 h-2.5' : 'w-3 h-3'} text-white`} />
               </motion.button>
             </div>
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsEditing(!isEditing)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all ${
-                isEditing
-                  ? "bg-gradient-to-r from-red-500 to-pink-500 text-white shadow-lg"
-                  : "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg"
-              }`}
-            >
-              {isEditing ? (
-                <>
-                  <X className="w-4 h-4" />
+            {!isEditing ? (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsEditing(true)}
+                className={`${compactMode ? 'px-3 py-1.5 text-sm' : 'px-5 py-2'} ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-900'} text-white ${compactMode ? 'rounded-lg' : 'rounded-full'} font-semibold hover:shadow-lg transition-all`}
+              >
+                <Edit2 className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} inline mr-2`} />
+                Edit Profile
+              </motion.button>
+            ) : (
+              <div className="flex gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsEditing(false)}
+                  className={`${compactMode ? 'px-3 py-1.5 text-sm rounded-lg' : 'px-4 py-2 rounded-full'} font-semibold ${
+                    theme === 'dark' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'
+                  }`}
+                >
                   Cancel
-                </>
-              ) : (
-                <>
-                  <Edit className="w-4 h-4" />
-                  Edit Profile
-                </>
-              )}
-            </motion.button>
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setIsEditing(false)}
+                  className={`${compactMode ? 'px-3 py-1.5 text-sm rounded-lg' : 'px-4 py-2 rounded-full'} ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-900'} text-white font-semibold hover:shadow-lg`}
+                >
+                  <Save className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} inline mr-2`} />
+                  Save Changes
+                </motion.button>
+              </div>
+            )}
           </div>
 
           {/* Profile Info */}
-          <div className="space-y-6">
-            {/* Name & Role */}
+          <div className={compactMode ? "space-y-3" : "space-y-6"}>
+            {/* Name & Title */}
             <div>
               {isEditing ? (
                 <input
                   type="text"
                   value={profile.name}
-                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                  className="text-2xl font-bold text-gray-900 mb-1 px-3 py-2 border border-purple-300 rounded-lg w-full max-w-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  onChange={(e) => setProfile({...profile, name: e.target.value})}
+                  className={`${compactMode ? 'text-lg' : 'text-2xl'} font-bold mb-1 w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
+                    theme === 'dark' 
+                      ? 'bg-gray-800 text-white border-gray-700' 
+                      : 'bg-white text-gray-900 border-gray-200'
+                  } border`}
                 />
               ) : (
-                <h2 className="text-2xl font-bold text-gray-900">{profile.name}</h2>
+                <h2 className={`${compactMode ? 'text-lg' : 'text-2xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {profile.name}
+                </h2>
               )}
-              <div className="flex items-center gap-2 mt-1">
-                <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-semibold rounded-full">
-                  {profile.role}
+              <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                {profile.role}  {profile.department}
+              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <MapPin className="w-4 h-4 text-gray-500" />
+                <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {profile.location}
                 </span>
-                <span className="text-gray-600">• {profile.department}</span>
-              </div>
-            </div>
-
-            {/* Contact Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Email</p>
-                  {isEditing ? (
-                    <input
-                      type="email"
-                      value={profile.email}
-                      onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                      className="font-semibold text-gray-900 px-2 py-1 border border-purple-300 rounded w-full focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                  ) : (
-                    <p className="font-semibold text-gray-900">{profile.email}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Phone className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Phone</p>
-                  {isEditing ? (
-                    <input
-                      type="tel"
-                      value={profile.phone}
-                      onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                      className="font-semibold text-gray-900 px-2 py-1 border border-purple-300 rounded w-full focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                  ) : (
-                    <p className="font-semibold text-gray-900">{profile.phone}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <MapPin className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Location</p>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={profile.location}
-                      onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-                      className="font-semibold text-gray-900 px-2 py-1 border border-purple-300 rounded w-full focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                  ) : (
-                    <p className="font-semibold text-gray-900">{profile.location}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <CalendarIcon className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Joined</p>
-                  <p className="font-semibold text-gray-900">{profile.joinDate}</p>
-                </div>
               </div>
             </div>
 
             {/* Bio */}
             <div>
-              <p className="text-sm text-gray-600 mb-2">Bio</p>
+              <h3 className={`text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                Bio
+              </h3>
               {isEditing ? (
                 <textarea
                   value={profile.bio}
-                  onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                  onChange={(e) => setProfile({...profile, bio: e.target.value})}
                   rows={3}
-                  className="w-full px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-700"
+                  className={`w-full px-3 py-2 rounded-lg ${
+                    theme === 'dark' 
+                      ? 'bg-gray-800 text-white border-gray-700' 
+                      : 'bg-white text-gray-900 border-gray-200'
+                  } border`}
                 />
               ) : (
-                <p className="text-gray-700">{profile.bio}</p>
+                <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
+                  {profile.bio}
+                </p>
               )}
             </div>
 
-            {isEditing && (
-              <motion.button
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setIsEditing(false)}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl shadow-lg"
-              >
-                <Save className="w-4 h-4" />
-                Save Changes
-              </motion.button>
-            )}
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {userStats.map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 + index * 0.1 }}
-            className="glass rounded-2xl p-6 shadow-xl"
-          >
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 bg-gradient-to-br ${stat.gradient} rounded-xl flex items-center justify-center shadow-lg`}>
-                <stat.icon className="w-6 h-6 text-white" />
-              </div>
+            {/* Contact Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-sm text-gray-600">{stat.label}</p>
+                <label className={`text-sm font-semibold mb-2 flex items-center gap-2 ${
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  <Mail className="w-4 h-4" />
+                  Email
+                </label>
+                {isEditing ? (
+                  <input
+                    type="email"
+                    value={profile.email}
+                    onChange={(e) => setProfile({...profile, email: e.target.value})}
+                    className={`w-full px-3 py-2 rounded-lg ${
+                      theme === 'dark' 
+                        ? 'bg-gray-800 text-white border-gray-700' 
+                        : 'bg-white text-gray-900 border-gray-200'
+                    } border`}
+                  />
+                ) : (
+                  <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}>
+                    {profile.email}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className={`text-sm font-semibold mb-2 flex items-center gap-2 ${
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  <Phone className="w-4 h-4" />
+                  Phone
+                </label>
+                {isEditing ? (
+                  <input
+                    type="tel"
+                    value={profile.phone}
+                    onChange={(e) => setProfile({...profile, phone: e.target.value})}
+                    className={`w-full px-3 py-2 rounded-lg ${
+                      theme === 'dark' 
+                        ? 'bg-gray-800 text-white border-gray-700' 
+                        : 'bg-white text-gray-900 border-gray-200'
+                    } border`}
+                  />
+                ) : (
+                  <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}>
+                    {profile.phone}
+                  </p>
+                )}
               </div>
             </div>
-          </motion.div>
-        ))}
-      </div>
 
-      {/* Recent Activity */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="glass rounded-2xl p-6 shadow-xl"
-      >
-        <h3 className="font-bold text-gray-900 mb-4">Recent Activity</h3>
-        <div className="space-y-3">
-          {activityLog.map((activity, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 + index * 0.05 }}
-              className="flex items-start gap-3 p-3 bg-white/60 rounded-xl"
-            >
-              <div className={`w-2 h-2 mt-2 rounded-full ${
-                activity.type === "completion" ? "bg-green-500" :
-                activity.type === "meeting" ? "bg-blue-500" : "bg-purple-500"
-              }`} />
-              <div className="flex-1">
-                <p className="text-gray-900 font-medium">{activity.action}</p>
-                <p className="text-sm text-gray-600 mt-1">{activity.date}</p>
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="text-center">
+                <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  147
+                </p>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Meetings
+                </p>
               </div>
-            </motion.div>
-          ))}
+              <div className="text-center">
+                <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  89
+                </p>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Actions
+                </p>
+              </div>
+              <div className="text-center">
+                <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  92%
+                </p>
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Completion
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </motion.div>
     </div>

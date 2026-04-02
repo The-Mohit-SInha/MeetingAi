@@ -14,6 +14,7 @@ import {
   Plus,
   TrendingUp
 } from "lucide-react";
+import { useTheme } from "../context/ThemeContext";
 
 const meetings = [
   {
@@ -113,225 +114,239 @@ const meetings = [
 ];
 
 export function Meetings() {
+  const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("all");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex items-center justify-between flex-wrap gap-4"
+        className="flex items-center justify-between flex-wrap gap-3"
       >
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+          <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             Meetings
           </h1>
-          <p className="text-gray-600 mt-1 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-purple-500" />
-            View and manage all your meetings
+          <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+            Manage and review your meeting history
           </p>
         </div>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:shadow-xl transition-all font-semibold"
+          className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 text-sm"
         >
-          <Plus className="w-5 h-5" />
-          Schedule Meeting
+          <Plus className="w-4 h-4" />
+          New Meeting
         </motion.button>
       </motion.div>
 
-      {/* Search and Filter Bar */}
+      {/* Stats Bar */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.5 }}
-        className="glass rounded-2xl p-6 shadow-xl"
+        transition={{ delay: 0.1 }}
+        className="glass-card rounded-xl p-4"
       >
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search meetings..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-3 w-full bg-white/80 border border-white/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-            />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="text-center">
+            <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mb-1`}>Total Meetings</p>
+            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>147</p>
           </div>
-          
-          <div className="flex gap-3">
-            <div className="relative">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setFilterOpen(!filterOpen)}
-                className="flex items-center gap-2 px-5 py-3 bg-white/80 border border-white/50 rounded-xl hover:bg-white transition-all"
-              >
-                <Filter className="w-5 h-5 text-gray-600" />
-                <span className="text-gray-700 font-medium">Filter</span>
-                <ChevronDown className="w-4 h-4 text-gray-600" />
-              </motion.button>
-              
-              <AnimatePresence>
-                {filterOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute right-0 top-full mt-2 w-48 glass rounded-xl shadow-2xl z-10"
-                  >
-                    <div className="p-2">
-                      {["all", "today", "this-week", "last-week"].map((filter) => (
-                        <motion.button
-                          key={filter}
-                          whileHover={{ x: 5 }}
-                          onClick={() => {
-                            setSelectedFilter(filter);
-                            setFilterOpen(false);
-                          }}
-                          className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
-                            selectedFilter === filter
-                              ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white"
-                              : "text-gray-700 hover:bg-white/60"
-                          }`}
-                        >
-                          {filter.charAt(0).toUpperCase() + filter.slice(1).replace("-", " ")}
-                        </motion.button>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-            
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="flex items-center gap-2 px-5 py-3 bg-white/80 border border-white/50 rounded-xl hover:bg-white transition-all"
-            >
-              <Download className="w-5 h-5 text-gray-600" />
-              <span className="hidden sm:inline text-gray-700 font-medium">Export</span>
-            </motion.button>
+          <div className="text-center">
+            <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mb-1`}>This Week</p>
+            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>12</p>
+          </div>
+          <div className="text-center">
+            <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mb-1`}>Total Hours</p>
+            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>68.5</p>
+          </div>
+          <div className="text-center">
+            <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mb-1`}>Participants</p>
+            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>24</p>
           </div>
         </div>
       </motion.div>
 
-      {/* Meetings Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {meetings.map((meeting, index) => (
-          <motion.div
-            key={meeting.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 + index * 0.1, duration: 0.5 }}
-            whileHover={{ y: -5, scale: 1.02 }}
-            className="group relative"
-          >
-            {/* Glow Effect */}
-            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-20 blur-xl transition-all duration-500" />
-            
-            <Link
-              to={`/meetings/${meeting.id}`}
-              className="relative block glass rounded-2xl p-6 hover:shadow-2xl transition-all"
+      {/* Search and Filter */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="glass-card rounded-xl p-4"
+      >
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Search */}
+          <div className="flex-1 min-w-[200px]">
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+              theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'
+            } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <Search className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+              <input
+                type="text"
+                placeholder="Search meetings..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`flex-1 bg-transparent outline-none text-sm ${
+                  theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Filter Dropdown */}
+          <div className="relative">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              onClick={() => setFilterOpen(!filterOpen)}
+              className={`px-4 py-2 rounded-lg ${
+                theme === 'dark' ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white/80 hover:bg-white'
+              } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} flex items-center gap-2 text-sm`}
             >
-              {/* Header */}
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 transition-all">
-                    {meeting.title}
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {meeting.tags.map((tag) => (
-                      <motion.span
-                        key={tag}
-                        whileHover={{ scale: 1.1 }}
-                        className="px-3 py-1 bg-gradient-to-r from-blue-50 to-purple-50 text-purple-700 text-xs font-semibold rounded-full border border-purple-200/50"
-                      >
-                        {tag}
-                      </motion.span>
-                    ))}
-                  </div>
-                </div>
+              <Filter className="w-4 h-4" />
+              Filter
+              <ChevronDown className={`w-4 h-4 transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+            </motion.button>
+
+            <AnimatePresence>
+              {filterOpen && (
                 <motion.div
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  className={`px-4 py-2 rounded-full text-xs font-bold shadow-lg ${
-                    meeting.status === "completed"
-                      ? "bg-gradient-to-r from-green-400 to-emerald-500 text-white"
-                      : "bg-gradient-to-r from-blue-400 to-cyan-500 text-white"
-                  }`}
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className={`absolute right-0 mt-2 w-48 rounded-lg ${
+                    theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+                  } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-xl z-10`}
                 >
-                  {meeting.status}
-                </motion.div>
-              </div>
-
-              {/* Meeting Info */}
-              <div className="flex flex-wrap items-center gap-4 mb-4 text-sm text-gray-600">
-                <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg">
-                  <CalendarIcon className="w-4 h-4 text-blue-600" />
-                  <span className="font-medium">{meeting.date}</span>
-                </div>
-                <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg">
-                  <Clock className="w-4 h-4 text-purple-600" />
-                  <span className="font-medium">{meeting.time} ({meeting.duration})</span>
-                </div>
-              </div>
-
-              {/* Participants */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <Users className="w-4 h-4 text-gray-600" />
-                  <div className="flex -space-x-3">
-                    {meeting.participants.slice(0, 3).map((participant, idx) => (
-                      <motion.div
-                        key={idx}
-                        whileHover={{ scale: 1.2, zIndex: 10 }}
-                        className={`w-10 h-10 ${participant.color} rounded-full border-3 border-white flex items-center justify-center shadow-lg cursor-pointer`}
-                        title={participant.name}
+                  <div className="p-2">
+                    {['all', 'today', 'this-week', 'this-month'].map((filter) => (
+                      <button
+                        key={filter}
+                        onClick={() => {
+                          setSelectedFilter(filter);
+                          setFilterOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+                          selectedFilter === filter
+                            ? 'bg-blue-500 text-white'
+                            : theme === 'dark'
+                            ? 'text-gray-300 hover:bg-gray-700'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
                       >
-                        <span className="text-white text-sm font-bold">{participant.avatar}</span>
-                      </motion.div>
+                        {filter.charAt(0).toUpperCase() + filter.slice(1).replace('-', ' ')}
+                      </button>
                     ))}
-                    {meeting.participants.length > 3 && (
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full border-3 border-white flex items-center justify-center shadow-lg">
-                        <span className="text-white text-sm font-bold">
-                          +{meeting.participants.length - 3}
-                        </span>
-                      </div>
-                    )}
                   </div>
-                </div>
-              </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-              {/* Action Items Progress */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 text-gray-700 font-medium">
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    Action Items
+          {/* Export Button */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            className={`px-4 py-2 rounded-lg ${
+              theme === 'dark' ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white/80 hover:bg-white'
+            } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} flex items-center gap-2 text-sm`}
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </motion.button>
+        </div>
+      </motion.div>
+
+      {/* Meetings List */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="space-y-3"
+      >
+        {meetings.map((meeting, index) => (
+          <Link key={meeting.id} to={`/meetings/${meeting.id}`}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 + index * 0.05 }}
+              whileHover={{ scale: 1.01 }}
+              className="glass-card rounded-xl p-4 cursor-pointer"
+            >
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                {/* Left Section */}
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex-shrink-0">
+                    <Video className="w-4 h-4 text-white" />
                   </div>
-                  <span className="text-gray-600 font-bold">
-                    {meeting.completed}/{meeting.actions}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {meeting.title}
+                    </h3>
+                    <div className={`flex items-center gap-3 text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} flex-wrap`}>
+                      <span className="flex items-center gap-1">
+                        <CalendarIcon className="w-3 h-3" />
+                        {meeting.date}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {meeting.time} • {meeting.duration}
+                      </span>
+                    </div>
+                    <div className="flex gap-1.5 mt-2">
+                      {meeting.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className={`px-2 py-0.5 rounded-full text-xs ${
+                            theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'
+                          }`}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(meeting.completed / meeting.actions) * 100}%` }}
-                    transition={{ duration: 1, delay: 0.5 + index * 0.1 }}
-                    className="bg-gradient-to-r from-green-400 to-emerald-500 h-3 rounded-full"
-                  />
+
+                {/* Right Section */}
+                <div className="flex items-center gap-3">
+                  {/* Participants */}
+                  <div className="flex items-center">
+                    <div className="flex -space-x-2">
+                      {meeting.participants.slice(0, 3).map((participant, idx) => (
+                        <div
+                          key={idx}
+                          className={`w-7 h-7 rounded-full ${participant.color} flex items-center justify-center text-white text-xs font-bold border-2 ${
+                            theme === 'dark' ? 'border-gray-800' : 'border-white'
+                          }`}
+                          title={participant.name}
+                        >
+                          {participant.avatar}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Actions Progress */}
+                  <div className={`px-3 py-2 rounded-lg ${
+                    theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'
+                  } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      <span className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        {meeting.completed}/{meeting.actions}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </Link>
-          </motion.div>
+            </motion.div>
+          </Link>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 }

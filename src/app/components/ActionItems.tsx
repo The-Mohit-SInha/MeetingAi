@@ -10,11 +10,14 @@ import {
   AlertCircle,
   ChevronDown,
   User,
-  Calendar as CalendarIcon,
+  Calendar,
   Target,
   Zap,
-  TrendingUp
+  TrendingUp,
+  Flag,
+  Video
 } from "lucide-react";
+import { useTheme } from "../context/ThemeContext";
 
 const actionItems = [
   {
@@ -100,218 +103,289 @@ const statusConfig = {
 };
 
 export function ActionItems() {
+  const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState("all");
+  const [priorityFilterOpen, setPriorityFilterOpen] = useState(false);
+  const [selectedPriority, setSelectedPriority] = useState("all");
 
-  const filteredItems = actionItems.filter(item => {
-    if (selectedStatus && item.status !== selectedStatus) return false;
-    if (searchQuery && !item.task.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
+  const filteredActions = actionItems.filter((action) => {
+    const matchesSearch = action.task.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = selectedFilter === "all" || action.status === selectedFilter;
+    const matchesPriority = selectedPriority === "all" || action.priority === selectedPriority;
+    return matchesSearch && matchesStatus && matchesPriority;
   });
 
-  const stats = [
-    { label: "Total Tasks", value: actionItems.length, icon: Target, color: "from-blue-500 to-cyan-500" },
-    { label: "In Progress", value: actionItems.filter(i => i.status === "in-progress").length, icon: Zap, color: "from-purple-500 to-pink-500" },
-    { label: "Completed", value: actionItems.filter(i => i.status === "completed").length, icon: CheckCircle2, color: "from-green-500 to-emerald-500" },
-  ];
+  const stats = {
+    total: actionItems.length,
+    completed: actionItems.filter(a => a.status === 'completed').length,
+    inProgress: actionItems.filter(a => a.status === 'in-progress').length,
+    pending: actionItems.filter(a => a.status === 'pending').length,
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent">
+        <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
           Action Items
         </h1>
-        <p className="text-gray-600 mt-1 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-purple-500" />
-          Track and manage all your tasks
+        <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+          Track and manage action items from meetings
         </p>
       </motion.div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: index * 0.1, duration: 0.5 }}
-            whileHover={{ y: -5, scale: 1.02 }}
-            className="relative group"
-          >
-            <div className={`absolute -inset-1 bg-gradient-to-r ${stat.color} rounded-2xl opacity-0 group-hover:opacity-30 blur-xl transition-all duration-500`} />
-            <div className="relative glass rounded-2xl p-6 shadow-xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium mb-1">{stat.label}</p>
-                  <p className="text-4xl font-bold text-gray-900">{stat.value}</p>
-                </div>
-                <motion.div
-                  whileHover={{ rotate: 360, scale: 1.2 }}
-                  transition={{ duration: 0.6 }}
-                  className={`w-16 h-16 bg-gradient-to-br ${stat.color} rounded-2xl flex items-center justify-center shadow-lg`}
-                >
-                  <stat.icon className="w-8 h-8 text-white" />
-                </motion.div>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Filter Tabs */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="flex gap-3 overflow-x-auto pb-2"
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-2 md:grid-cols-4 gap-3"
       >
-        {[
-          { label: "All Tasks", value: null },
-          { label: "In Progress", value: "in-progress" },
-          { label: "Completed", value: "completed" },
-          { label: "Pending", value: "pending" },
-        ].map((filter) => (
-          <motion.button
-            key={filter.label}
-            whileHover={{ scale: 1.05, y: -2 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setSelectedStatus(filter.value)}
-            className={`px-6 py-3 rounded-full font-semibold whitespace-nowrap transition-all ${
-              selectedStatus === filter.value
-                ? "bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg"
-                : "glass hover:bg-white text-gray-700"
-            }`}
-          >
-            {filter.label}
-          </motion.button>
-        ))}
+        {Object.entries(statusConfig).map(([key, config], index) => {
+          const count = stats[key as keyof typeof stats];
+          const Icon = config.icon;
+          return (
+            <motion.div
+              key={key}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.15 + index * 0.05 }}
+              whileHover={{ scale: 1.02 }}
+              className="glass-card rounded-xl p-4"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`p-1.5 rounded-lg bg-gradient-to-br ${config.color}`}>
+                  <Icon className="w-3 h-3 text-white" />
+                </div>
+                <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {config.label}
+                </span>
+              </div>
+              <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                {count}
+              </p>
+            </motion.div>
+          );
+        })}
       </motion.div>
 
-      {/* Search Bar */}
+      {/* Search and Filters */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="glass rounded-2xl p-4 shadow-xl"
+        transition={{ delay: 0.2 }}
+        className="glass-card rounded-xl p-4"
       >
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search action items..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-12 pr-4 py-3 w-full bg-white/80 border border-white/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-          />
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Search */}
+          <div className="flex-1 min-w-[200px]">
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+              theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'
+            } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+              <Search className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+              <input
+                type="text"
+                placeholder="Search actions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`flex-1 bg-transparent outline-none text-sm ${
+                  theme === 'dark' ? 'text-white placeholder-gray-400' : 'text-gray-900 placeholder-gray-500'
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Status Filter */}
+          <div className="relative">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              onClick={() => setFilterOpen(!filterOpen)}
+              className={`px-4 py-2 rounded-lg ${
+                theme === 'dark' ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white/80 hover:bg-white'
+              } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} flex items-center gap-2 text-sm`}
+            >
+              <Filter className="w-4 h-4" />
+              Status
+              <ChevronDown className={`w-4 h-4 transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+            </motion.button>
+
+            <AnimatePresence>
+              {filterOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className={`absolute right-0 mt-2 w-48 rounded-lg ${
+                    theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+                  } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-xl z-10`}
+                >
+                  <div className="p-2">
+                    {['all', 'completed', 'in-progress', 'pending'].map((filter) => (
+                      <button
+                        key={filter}
+                        onClick={() => {
+                          setSelectedFilter(filter);
+                          setFilterOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+                          selectedFilter === filter
+                            ? 'bg-blue-500 text-white'
+                            : theme === 'dark'
+                            ? 'text-gray-300 hover:bg-gray-700'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        {filter === 'all' ? 'All' : statusConfig[filter as keyof typeof statusConfig].label}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Priority Filter */}
+          <div className="relative">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              onClick={() => setPriorityFilterOpen(!priorityFilterOpen)}
+              className={`px-4 py-2 rounded-lg ${
+                theme === 'dark' ? 'bg-gray-800/50 hover:bg-gray-800' : 'bg-white/80 hover:bg-white'
+              } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} flex items-center gap-2 text-sm`}
+            >
+              <Flag className="w-4 h-4" />
+              Priority
+              <ChevronDown className={`w-4 h-4 transition-transform ${priorityFilterOpen ? 'rotate-180' : ''}`} />
+            </motion.button>
+
+            <AnimatePresence>
+              {priorityFilterOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className={`absolute right-0 mt-2 w-48 rounded-lg ${
+                    theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+                  } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-xl z-10`}
+                >
+                  <div className="p-2">
+                    {['all', 'high', 'medium', 'low'].map((priority) => (
+                      <button
+                        key={priority}
+                        onClick={() => {
+                          setSelectedPriority(priority);
+                          setPriorityFilterOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+                          selectedPriority === priority
+                            ? 'bg-blue-500 text-white'
+                            : theme === 'dark'
+                            ? 'text-gray-300 hover:bg-gray-700'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </motion.div>
 
       {/* Action Items List */}
-      <div className="space-y-4">
-        <AnimatePresence mode="popLayout">
-          {filteredItems.map((item, index) => {
-            const PriorityIcon = priorityConfig[item.priority].icon;
-            const StatusIcon = statusConfig[item.status].icon;
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+        className="space-y-3"
+      >
+        {filteredActions.map((action, index) => {
+          const StatusIcon = statusConfig[action.status].icon;
+          const statusColor = statusConfig[action.status].color;
+          
+          return (
+            <motion.div
+              key={action.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 + index * 0.03 }}
+              whileHover={{ scale: 1.01 }}
+              className="glass-card rounded-xl p-4 cursor-pointer"
+            >
+              <div className="flex items-start gap-3">
+                {/* Status Icon */}
+                <div className={`p-2 rounded-lg bg-gradient-to-br ${statusColor} flex-shrink-0`}>
+                  <StatusIcon className="w-4 h-4 text-white" />
+                </div>
 
-            return (
-              <motion.div
-                key={item.id}
-                layout
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ delay: 0.6 + index * 0.05, duration: 0.4 }}
-                whileHover={{ scale: 1.01, y: -3 }}
-                className="group relative"
-              >
-                {/* Hover Glow */}
-                <div className={`absolute -inset-1 bg-gradient-to-r ${priorityConfig[item.priority].color} rounded-2xl opacity-0 group-hover:opacity-20 blur-xl transition-all duration-500`} />
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <h3 className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {action.task}
+                    </h3>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${
+                      action.priority === 'high'
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                        : action.priority === 'medium'
+                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                    }`}>
+                      {action.priority}
+                    </span>
+                  </div>
 
-                <div className="relative glass rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all">
-                  <div className="flex items-start gap-4">
-                    {/* Status Icon */}
-                    <motion.button
-                      whileHover={{ scale: 1.2, rotate: 360 }}
-                      whileTap={{ scale: 0.9 }}
-                      className={`flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br ${statusConfig[item.status].color} flex items-center justify-center shadow-lg`}
-                    >
-                      <StatusIcon className="w-5 h-5 text-white" />
-                    </motion.button>
+                  <div className={`flex items-center gap-3 flex-wrap text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <span className="flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      {action.assignee.name}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      Due: {action.dueDate}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Video className="w-3 h-3" />
+                      {action.meeting}
+                    </span>
+                  </div>
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4 mb-3">
-                        <h3 className="text-lg font-bold text-gray-900 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-purple-600 group-hover:to-pink-600 transition-all">
-                          {item.task}
-                        </h3>
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          className={`flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r ${priorityConfig[item.priority].color} text-white text-xs font-bold shadow-lg flex-shrink-0`}
-                        >
-                          <PriorityIcon className="w-3 h-3" />
-                          {priorityConfig[item.priority].label}
-                        </motion.div>
-                      </div>
-
-                      <p className="text-gray-600 text-sm mb-4 leading-relaxed">
-                        {item.description}
-                      </p>
-
-                      {/* Meta Info */}
-                      <div className="flex flex-wrap gap-3 text-sm">
-                        <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg">
-                          <motion.div
-                            whileHover={{ scale: 1.2 }}
-                            className={`w-7 h-7 ${item.assignee.color} rounded-full flex items-center justify-center shadow-md`}
-                          >
-                            <span className="text-white text-xs font-bold">{item.assignee.avatar}</span>
-                          </motion.div>
-                          <span className="text-gray-700 font-medium">{item.assignee.name}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg">
-                          <CalendarIcon className="w-4 h-4 text-purple-600" />
-                          <span className="text-gray-700 font-medium">Due: {item.dueDate}</span>
-                        </div>
-
-                        <Link 
-                          to={`/meetings/${item.meetingId}`}
-                          className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                        >
-                          <Clock className="w-4 h-4 text-gray-600" />
-                          <span className="text-gray-700 font-medium text-xs">{item.meeting}</span>
-                        </Link>
+                  {/* Progress Bar */}
+                  {action.status === 'in-progress' && (
+                    <div className="mt-2">
+                      <div className={`h-1.5 rounded-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-600"
+                          style={{ width: `${action.progress || 0}%` }}
+                        />
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </motion.div>
 
-      {/* Empty State */}
-      {filteredItems.length === 0 && (
+      {filteredActions.length === 0 && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="glass rounded-2xl p-16 text-center shadow-xl"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="glass-card rounded-xl p-8 text-center"
         >
-          <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="inline-block mb-4"
-          >
-            <Target className="w-16 h-16 text-gray-400" />
-          </motion.div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No action items found</h3>
-          <p className="text-gray-600">Try adjusting your search or filters</p>
+          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            No action items found matching your filters
+          </p>
         </motion.div>
       )}
     </div>

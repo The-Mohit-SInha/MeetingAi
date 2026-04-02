@@ -2,294 +2,61 @@
 @import './tailwind.css';
 @import './theme.css';
 
-/* Glassmorphism utilities */
+/* Enhanced glassmorphism card utilities matching the example */
+.glass-card {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.dark .glass-card {
+  background: rgba(40, 40, 42, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.card-light {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.card-dark {
+  background: rgba(50, 50, 52, 0.7);
+  border-radius: 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dark .card-light {
+  background: rgba(50, 50, 52, 0.6);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dark .card-dark {
+  background: rgba(30, 30, 32, 0.8);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* Glassmorphism utilities - kept for backward compatibility */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 1rem;
 }
 
 .dark .glass {
-  background: rgba(30, 41, 59, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(71, 85, 105, 0.3);
-}
-
-.glass-dark {
-  background: rgba(30, 30, 50, 0.5);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Custom animations */
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-20px) rotate(2deg); }
-}
-
-@keyframes gradient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-@keyframes shimmer {
-  0% { background-position: -1000px 0; }
-  100% { background-position: 1000px 0; }
-}
-
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
-.animate-gradient {
-  background-size: 200% 200%;
-  animation: gradient-shift 5s ease infinite;
-}
-
-.animate-shimmer {
-  animation: shimmer 3s infinite;
-  background-size: 1000px 100%;
-}
-
-/* Dark mode text overrides */
-.dark .text-gray-900 {
-  color: #f3f4f6 !important;
-}
-
-.dark .text-gray-800 {
-  color: #e5e7eb !important;
-}
-
-.dark .text-gray-700 {
-  color: #d1d5db !important;
-}
-
-.dark .text-gray-600 {
-  color: #9ca3af !important;
-}
-
-.dark .text-gray-500 {
-  color: #6b7280 !important;
-}
-
-.dark .text-gray-400 {
-  color: #9ca3af !important;
-}
-
-/* Dark mode background overrides */
-.dark .bg-white {
-  background-color: rgba(30, 41, 59, 0.8) !important;
-}
-
-.dark .bg-white\/60 {
-  background-color: rgba(30, 41, 59, 0.6) !important;
-}
-
-.dark .bg-white\/50 {
-  background-color: rgba(30, 41, 59, 0.5) !important;
-}
-
-.dark .bg-gray-50 {
-  background-color: rgba(30, 41, 59, 0.5) !important;
-}
-
-.dark .bg-gray-100 {
-  background-color: rgba(30, 41, 59, 0.6) !important;
-}
-
-/* Dark mode badge and colored backgrounds */
-.dark .bg-blue-100 {
-  background-color: rgba(59, 130, 246, 0.2) !important;
-}
-
-.dark .bg-green-100 {
-  background-color: rgba(16, 185, 129, 0.2) !important;
-}
-
-.dark .bg-yellow-100 {
-  background-color: rgba(245, 158, 11, 0.2) !important;
-}
-
-.dark .bg-orange-100 {
-  background-color: rgba(251, 146, 60, 0.2) !important;
-}
-
-.dark .bg-red-100 {
-  background-color: rgba(239, 68, 68, 0.2) !important;
-}
-
-.dark .bg-purple-100 {
-  background-color: rgba(139, 92, 246, 0.2) !important;
-}
-
-.dark .bg-pink-100 {
-  background-color: rgba(236, 72, 153, 0.2) !important;
-}
-
-.dark .bg-indigo-100 {
-  background-color: rgba(99, 102, 241, 0.2) !important;
-}
-
-/* Dark mode colored text */
-.dark .text-blue-600 {
-  color: #60a5fa !important;
-}
-
-.dark .text-green-600 {
-  color: #34d399 !important;
-}
-
-.dark .text-yellow-600 {
-  color: #fbbf24 !important;
-}
-
-.dark .text-orange-600 {
-  color: #fb923c !important;
-}
-
-.dark .text-red-600 {
-  color: #f87171 !important;
-}
-
-.dark .text-purple-600 {
-  color: #a78bfa !important;
-}
-
-.dark .text-pink-600 {
-  color: #f472b6 !important;
-}
-
-.dark .text-indigo-600 {
-  color: #818cf8 !important;
-}
-
-/* Dark mode border overrides */
-.dark .border-white\/20 {
-  border-color: rgba(71, 85, 105, 0.3) !important;
-}
-
-.dark .border-white\/30 {
-  border-color: rgba(71, 85, 105, 0.4) !important;
-}
-
-.dark .border-gray-200 {
-  border-color: rgba(71, 85, 105, 0.5) !important;
-}
-
-.dark .border-gray-300 {
-  border-color: rgba(71, 85, 105, 0.6) !important;
-}
-
-/* Dark mode hover states */
-.dark .hover\:bg-white\/60:hover {
-  background-color: rgba(30, 41, 59, 0.8) !important;
-}
-
-.dark .hover\:bg-white\/50:hover {
-  background-color: rgba(30, 41, 59, 0.7) !important;
-}
-
-.dark .hover\:border-purple-500:hover {
-  border-color: #a78bfa !important;
-}
-
-/* Dark mode input styles */
-.dark input {
-  background-color: rgba(30, 41, 59, 0.6) !important;
-  color: #e5e7eb !important;
-  border-color: rgba(71, 85, 105, 0.5) !important;
-}
-
-.dark input::placeholder {
-  color: #9ca3af !important;
-}
-
-.dark input:focus {
-  background-color: rgba(30, 41, 59, 0.7) !important;
-}
-
-/* Dark mode select styles */
-.dark select {
-  background-color: rgba(30, 41, 59, 0.6) !important;
-  color: #e5e7eb !important;
-  border-color: rgba(71, 85, 105, 0.5) !important;
-}
-
-/* Dark mode textarea styles */
-.dark textarea {
-  background-color: rgba(30, 41, 59, 0.6) !important;
-  color: #e5e7eb !important;
-  border-color: rgba(71, 85, 105, 0.5) !important;
-}
-
-.dark textarea::placeholder {
-  color: #9ca3af !important;
-}
-
-/* Dark mode shadow overrides for cards */
-.dark .shadow-xl {
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
-}
-
-.dark .shadow-lg {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3) !important;
-}
-
-/* Dark mode for buttons with specific styles */
-.dark button:not([class*="from-"]):not([class*="gradient"]) {
-  color: #e5e7eb;
-}
-
-/* Dark mode for gray backgrounds */
-.dark .bg-gray-200 {
-  background-color: rgba(51, 65, 85, 0.6) !important;
-}
-
-.dark .bg-gray-300 {
-  background-color: rgba(71, 85, 105, 0.6) !important;
-}
-
-/* Dark mode for placeholder in search */
-.dark .placeholder\:text-gray-500::placeholder {
-  color: #9ca3af !important;
-}
-
-/* Dark mode for dividers and separators */
-.dark hr {
-  border-color: rgba(71, 85, 105, 0.5) !important;
-}
-
-/* Dark mode for badges and tags */
-.dark .badge {
-  background-color: rgba(30, 41, 59, 0.6);
-  color: #e5e7eb;
-  border-color: rgba(71, 85, 105, 0.5);
-}
-
-/* Ensure gradient buttons stay vibrant in dark mode */
-.dark .bg-gradient-to-r,
-.dark .bg-gradient-to-br,
-.dark .bg-gradient-to-bl {
-  /* Gradients should maintain their colors in dark mode */
-  opacity: 1;
-}
-
-/* Dark mode for white text to stay readable */
-.dark .text-white {
-  color: #ffffff !important;
-}
-
-/* Dark mode for white/80 text opacity */
-.dark .text-white\/80 {
-  color: rgba(255, 255, 255, 0.8) !important;
-}
-
-/* Additional responsive dark mode support */
-@media (max-width: 768px) {
-  .dark .glass {
-    background: rgba(30, 41, 59, 0.85);
-  }
+  background: rgba(50, 50, 52, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }

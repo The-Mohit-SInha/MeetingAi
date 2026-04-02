@@ -15,6 +15,8 @@ import {
 } from "recharts";
 import { TrendingUp, Calendar, CheckSquare, Users, ArrowUp, ArrowDown } from "lucide-react";
 import { MeetingsTrendChart, ActionsPieChart, DurationBarChart, CompletionLineChart } from "./ChartComponents";
+import { motion } from "motion/react";
+import { useTheme } from "../context/ThemeContext";
 
 const meetingsByMonth = [
   { month: "Oct", meetings: 28, actions: 45, id: "oct" },
@@ -53,183 +55,161 @@ const completionRate = [
   { week: "Week 4", rate: 88, id: "w4" },
 ];
 
-const kpiData = [
-  {
-    title: "Total Meetings",
-    value: "147",
-    change: "+12.5%",
-    trend: "up",
-    icon: CheckSquare,
-    color: "bg-blue-500",
-    period: "Last 30 days",
-  },
-  {
-    title: "Avg. Meeting Duration",
-    value: "48 min",
-    change: "-5 min",
-    trend: "down",
-    icon: Calendar,
-    color: "bg-purple-500",
-    period: "Last 30 days",
-  },
-  {
-    title: "Action Items Created",
-    value: "229",
-    change: "+18.2%",
-    trend: "up",
-    icon: CheckSquare,
-    color: "bg-green-500",
-    period: "Last 30 days",
-  },
-  {
-    title: "Avg. Participants",
-    value: "7.3",
-    change: "+0.8",
-    trend: "up",
-    icon: Users,
-    color: "bg-orange-500",
-    period: "Per meeting",
-  },
-];
-
 export function Analytics() {
-  return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-semibold text-gray-900">Analytics</h1>
-        <p className="text-gray-600 mt-1">Insights and metrics from your meetings</p>
-      </div>
+  const { theme } = useTheme();
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {kpiData.map((kpi, idx) => (
-          <div key={idx} className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`${kpi.color} w-12 h-12 rounded-lg flex items-center justify-center`}>
-                <kpi.icon className="w-6 h-6 text-white" />
+  const stats = [
+    { name: "Total Meetings", value: "147", change: "+12%", trend: "up", icon: Calendar, gradient: "from-blue-500 to-cyan-500" },
+    { name: "Action Items", value: "229", change: "+8%", trend: "up", icon: CheckSquare, gradient: "from-green-500 to-emerald-500" },
+    { name: "Avg Completion", value: "92%", change: "+5%", trend: "up", icon: TrendingUp, gradient: "from-purple-500 to-pink-500" },
+    { name: "Active Users", value: "24", change: "-2%", trend: "down", icon: Users, gradient: "from-orange-500 to-red-500" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+          Analytics
+        </h1>
+        <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+          Insights and metrics from your meetings
+        </p>
+      </motion.div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {stats.map((stat, index) => (
+          <motion.div
+            key={stat.name}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 + index * 0.05 }}
+            className="glass-card rounded-xl p-4"
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className={`p-2 rounded-lg bg-gradient-to-br ${stat.gradient} shadow-md`}>
+                <stat.icon className="w-4 h-4 text-white" />
               </div>
-              <div className={`flex items-center gap-1 text-sm font-medium ${
-                kpi.trend === "up" ? "text-green-600" : "text-blue-600"
+              <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
+                stat.trend === "up" 
+                  ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" 
+                  : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
               }`}>
-                {kpi.trend === "up" ? (
-                  <ArrowUp className="w-4 h-4" />
-                ) : (
-                  <ArrowDown className="w-4 h-4" />
-                )}
-                {kpi.change}
+                {stat.trend === "up" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+                {stat.change}
               </div>
             </div>
-            <p className="text-3xl font-semibold text-gray-900">{kpi.value}</p>
-            <p className="text-sm text-gray-600 mt-1">{kpi.title}</p>
-            <p className="text-xs text-gray-500 mt-2">{kpi.period}</p>
-          </div>
+            <h3 className={`text-sm font-medium mb-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+              {stat.name}
+            </h3>
+            <p className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              {stat.value}
+            </p>
+          </motion.div>
         ))}
       </div>
 
-      {/* Charts Row 1 */}
+      {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Meetings & Actions Trend */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="mb-4">
-            <h3 className="font-semibold text-gray-900">Meetings & Actions Over Time</h3>
-            <p className="text-sm text-gray-600 mt-1">Monthly trend for the past 6 months</p>
-          </div>
+        {/* Meetings Trend */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+          className="glass-card rounded-2xl p-6"
+        >
+          <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            Meeting & Action Trends
+          </h3>
           <MeetingsTrendChart data={meetingsByMonth} />
-        </div>
+        </motion.div>
 
-        {/* Action Items Status */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="mb-4">
-            <h3 className="font-semibold text-gray-900">Action Items by Status</h3>
-            <p className="text-sm text-gray-600 mt-1">Distribution of all action items</p>
-          </div>
+        {/* Actions Distribution */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.35 }}
+          className="glass-card rounded-2xl p-6"
+        >
+          <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            Actions by Status
+          </h3>
           <ActionsPieChart data={actionsByStatus} />
-          <div className="flex justify-center gap-6 mt-4">
-            {actionsByStatus.map((item) => (
-              <div key={item.id} className="flex items-center gap-2">
-                <div 
-                  className="w-3 h-3 rounded-full" 
-                  style={{ backgroundColor: item.color }}
-                />
-                <span className="text-sm text-gray-700">{item.name}: {item.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+        </motion.div>
 
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Meeting Duration Distribution */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="mb-4">
-            <h3 className="font-semibold text-gray-900">Meeting Duration Distribution</h3>
-            <p className="text-sm text-gray-600 mt-1">Breakdown by meeting length</p>
-          </div>
+        {/* Meeting Duration */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.4 }}
+          className="glass-card rounded-2xl p-6"
+        >
+          <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            Meeting Duration Distribution
+          </h3>
           <DurationBarChart data={meetingDuration} />
-        </div>
+        </motion.div>
 
-        {/* Task Completion Rate */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="mb-4">
-            <h3 className="font-semibold text-gray-900">Action Item Completion Rate</h3>
-            <p className="text-sm text-gray-600 mt-1">Weekly completion percentage</p>
-          </div>
+        {/* Completion Rate */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.45 }}
+          className="glass-card rounded-2xl p-6"
+        >
+          <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            Weekly Completion Rate
+          </h3>
           <CompletionLineChart data={completionRate} />
-        </div>
+        </motion.div>
       </div>
 
-      {/* Participant Engagement Table */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="mb-4">
-          <h3 className="font-semibold text-gray-900">Top Participants</h3>
-          <p className="text-sm text-gray-600 mt-1">Most active team members by meetings and actions</p>
+      {/* Participant Engagement */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="glass-card rounded-2xl p-6"
+      >
+        <h3 className={`text-lg font-bold mb-6 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+          Top Participants
+        </h3>
+        <div className="space-y-4">
+          {participantEngagement.map((participant, index) => (
+            <motion.div
+              key={participant.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.55 + index * 0.05 }}
+              className={`flex items-center gap-4 p-4 rounded-xl ${
+                theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'
+              } border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}
+            >
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                {participant.name.split(' ').map(n => n[0]).join('')}
+              </div>
+              <div className="flex-1">
+                <h4 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  {participant.name}
+                </h4>
+                <div className={`flex items-center gap-4 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <span>{participant.meetings} meetings</span>
+                  <span>{participant.actions} actions</span>
+                </div>
+              </div>
+              <div className={`px-4 py-2 rounded-full text-sm font-bold ${
+                theme === 'dark' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-900'
+              }`}>
+                #{index + 1}
+              </div>
+            </motion.div>
+          ))}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Participant</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Meetings Attended</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Actions Assigned</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Engagement</th>
-              </tr>
-            </thead>
-            <tbody>
-              {participantEngagement.map((participant, idx) => (
-                <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                        <span className="text-white text-sm font-medium">
-                          {participant.name.split(' ').map(n => n[0]).join('')}
-                        </span>
-                      </div>
-                      <span className="font-medium text-gray-900">{participant.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-gray-700">{participant.meetings}</td>
-                  <td className="py-3 px-4 text-gray-700">{participant.actions}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${(participant.meetings / 50) * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-gray-600">
-                        {Math.round((participant.meetings / 50) * 100)}%
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

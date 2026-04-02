@@ -26,8 +26,8 @@ export const MeetingsAreaChart = memo(({ data }: { data: any[] }) => {
   const isDark = theme === 'dark';
   
   return (
-    <div key={chartId} style={{ width: '100%', height: 250 }}>
-      <ResponsiveContainer width="100%" height={250}>
+    <div key={chartId} style={{ width: '100%', height: '100%' }}>
+      <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -36,8 +36,15 @@ export const MeetingsAreaChart = memo(({ data }: { data: any[] }) => {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
-          <XAxis dataKey="day" stroke={isDark ? '#9ca3af' : '#6b7280'} />
-          <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} />
+          <XAxis 
+            dataKey="day" 
+            stroke={isDark ? '#9ca3af' : '#6b7280'} 
+            style={{ fontSize: '12px' }}
+          />
+          <YAxis 
+            stroke={isDark ? '#9ca3af' : '#6b7280'} 
+            style={{ fontSize: '12px' }}
+          />
           <Tooltip 
             contentStyle={{ 
               backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)', 
@@ -69,12 +76,19 @@ export const ActionsLineChart = memo(({ data }: { data: any[] }) => {
   const isDark = theme === 'dark';
   
   return (
-    <div key={chartId} style={{ width: '100%', height: 250 }}>
-      <ResponsiveContainer width="100%" height={250}>
+    <div key={chartId} style={{ width: '100%', height: '100%' }}>
+      <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
-          <XAxis dataKey="week" stroke={isDark ? '#9ca3af' : '#6b7280'} />
-          <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} />
+          <XAxis 
+            dataKey="week" 
+            stroke={isDark ? '#9ca3af' : '#6b7280'} 
+            style={{ fontSize: '12px' }}
+          />
+          <YAxis 
+            stroke={isDark ? '#9ca3af' : '#6b7280'} 
+            style={{ fontSize: '12px' }}
+          />
           <Tooltip 
             contentStyle={{ 
               backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)', 
@@ -84,19 +98,27 @@ export const ActionsLineChart = memo(({ data }: { data: any[] }) => {
               color: isDark ? '#e5e7eb' : '#1f2937'
             }} 
           />
+          <Legend 
+            wrapperStyle={{ 
+              fontSize: '12px',
+              color: isDark ? '#e5e7eb' : '#1f2937'
+            }}
+          />
           <Line 
             type="monotone" 
             dataKey="created" 
             stroke="#8b5cf6" 
-            strokeWidth={3} 
-            dot={{ fill: '#8b5cf6', r: 4 }} 
+            strokeWidth={2} 
+            dot={{ fill: '#8b5cf6', r: 3 }}
+            name="Created"
           />
           <Line 
             type="monotone" 
             dataKey="completed" 
             stroke="#10b981" 
-            strokeWidth={3} 
-            dot={{ fill: '#10b981', r: 4 }} 
+            strokeWidth={2} 
+            dot={{ fill: '#10b981', r: 3 }}
+            name="Completed"
           />
         </LineChart>
       </ResponsiveContainer>
