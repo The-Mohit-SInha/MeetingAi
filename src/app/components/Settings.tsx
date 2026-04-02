@@ -1,23 +1,24 @@
+import { useState, useEffect } from "react";
+import { useTheme } from "../context/ThemeContext";
+import { settingsAPI } from "../services/apiWrapper";
 import { motion } from "motion/react";
 import { 
+  User, 
+  Bell, 
+  Palette, 
+  Lock, 
+  Zap, 
   Settings as SettingsIcon,
-  User,
-  Bell,
-  Lock,
-  Palette,
+  Loader2,
+  Database,
   Globe,
+  Mail,
   Moon,
   Sun,
-  Volume2,
-  Mail,
   Shield,
   Key,
-  Database,
-  Zap,
   Save
 } from "lucide-react";
-import { useState } from "react";
-import { useTheme } from "../context/ThemeContext";
 
 const settingsSections = [
   {
@@ -55,23 +56,25 @@ const settingsSections = [
 export function Settings() {
   const { theme, setTheme, compactMode, toggleCompactMode } = useTheme();
   const [activeSection, setActiveSection] = useState("account");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
     // Account
     autoSave: true,
     language: "en",
     timezone: "America/Los_Angeles",
-    
+
     // Notifications
     emailNotifications: true,
     pushNotifications: true,
     meetingReminders: true,
     actionItemUpdates: true,
     weeklyDigest: false,
-    
+
     // Appearance
     showAvatars: true,
     animationsEnabled: true,
-    
+
     // Privacy
     profileVisibility: "team",
     activityStatus: true,
@@ -79,9 +82,70 @@ export function Settings() {
     twoFactorAuth: false,
   });
 
-  const handleToggle = (key: string) => {
-    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      setLoading(true);
+      const data = await settingsAPI.get();
+
+      setSettings({
+        autoSave: true,
+        language: "en",
+        timezone: "America/Los_Angeles",
+        emailNotifications: data.email_notifications ?? true,
+        pushNotifications: data.push_notifications ?? true,
+        meetingReminders: true,
+        actionItemUpdates: true,
+        weeklyDigest: false,
+        showAvatars: true,
+        animationsEnabled: true,
+        profileVisibility: "team",
+        activityStatus: true,
+        dataSharing: false,
+        twoFactorAuth: false,
+      });
+
+      if (data.theme) {
+        setTheme(data.theme);
+      }
+      if (data.compact_mode !== undefined && data.compact_mode !== compactMode) {
+        toggleCompactMode();
+      }
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleToggle = async (key: string) => {
+    const newValue = !settings[key as keyof typeof settings];
+    setSettings(prev => ({ ...prev, [key]: newValue }));
+
+    try {
+      setSaving(true);
+      await settingsAPI.update({
+        email_notifications: key === 'emailNotifications' ? newValue : settings.emailNotifications,
+        push_notifications: key === 'pushNotifications' ? newValue : settings.pushNotifications,
+      });
+    } catch (error) {
+      console.error("Error updating settings:", error);
+      setSettings(prev => ({ ...prev, [key]: !newValue }));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="w-12 h-12 animate-spin text-purple-600" />
+      </div>
+    );
+  }
 
   return (
     <div className={compactMode ? "space-y-4" : "space-y-6"}>

@@ -21,6 +21,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
   },
+  global: {
+    headers: {
+      'x-client-info': 'figma-make-app',
+    },
+  },
 });
 
 // Database types

@@ -34,6 +34,17 @@ export function MeetingsAreaChart({ data }: ChartProps) {
 
   if (!mounted) return <div style={{ width: '100%', height: '100%', minHeight: '160px' }} />;
 
+  // Handle empty data
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ width: '100%', height: '100%', minHeight: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: isDark ? '#9ca3af' : '#6b7280', fontSize: '14px', textAlign: 'center' }}>
+          No meeting data available yet
+        </p>
+      </div>
+    );
+  }
+
   return (
     <ResponsiveContainer width="100%" height="100%" minHeight={160}>
       <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
@@ -87,6 +98,17 @@ export function ActionsLineChart({ data }: ChartProps) {
   }, []);
 
   if (!mounted) return <div style={{ width: '100%', height: '100%', minHeight: '160px' }} />;
+
+  // Handle empty data
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ width: '100%', height: '100%', minHeight: '160px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: isDark ? '#9ca3af' : '#6b7280', fontSize: '14px', textAlign: 'center' }}>
+          No action items data available yet
+        </p>
+      </div>
+    );
+  }
 
   return (
     <ResponsiveContainer width="100%" height="100%" minHeight={160}>
@@ -150,6 +172,17 @@ export function MeetingsTrendChart({ data }: ChartProps) {
 
   if (!mounted) return <div style={{ width: '100%', height: '100%', minHeight: '250px' }} />;
 
+  // Handle empty data
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ width: '100%', height: '100%', minHeight: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: isDark ? '#9ca3af' : '#6b7280', fontSize: '14px', textAlign: 'center' }}>
+          No trend data available yet
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ResponsiveContainer width="100%" height="100%" minHeight={250}>
@@ -199,6 +232,17 @@ export function ActionsPieChart({ data }: ChartProps) {
 
   if (!mounted) return <div style={{ width: '100%', height: '100%', minHeight: '250px' }} />;
 
+  // Handle empty data
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ width: '100%', height: '100%', minHeight: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: isDark ? '#9ca3af' : '#6b7280', fontSize: '14px', textAlign: 'center' }}>
+          No action status data available yet
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ResponsiveContainer width="100%" height="100%" minHeight={250}>
@@ -245,6 +289,17 @@ export function DurationBarChart({ data }: ChartProps) {
 
   if (!mounted) return <div style={{ width: '100%', height: '100%', minHeight: '250px' }} />;
 
+  // Handle empty data
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ width: '100%', height: '100%', minHeight: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: isDark ? '#9ca3af' : '#6b7280', fontSize: '14px', textAlign: 'center' }}>
+          No meeting duration data available yet
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ResponsiveContainer width="100%" height="100%" minHeight={250}>
@@ -279,6 +334,17 @@ export function CompletionLineChart({ data }: ChartProps) {
   }, []);
 
   if (!mounted) return <div style={{ width: '100%', height: '100%', minHeight: '250px' }} />;
+
+  // Handle empty data
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ width: '100%', height: '100%', minHeight: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: isDark ? '#9ca3af' : '#6b7280', fontSize: '14px', textAlign: 'center' }}>
+          No completion rate data available yet
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%', height: '100%' }}>

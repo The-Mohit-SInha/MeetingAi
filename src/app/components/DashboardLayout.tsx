@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from "react-router";
+import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { 
   LayoutDashboard, 
@@ -12,10 +12,12 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   Moon,
-  Sun
+  Sun,
+  LogOut
 } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
@@ -29,6 +31,8 @@ const navigation = [
 export function DashboardLayout() {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
 
   const isActive = (href: string) => {
     if (href === "/") {
@@ -149,6 +153,16 @@ export function DashboardLayout() {
                 <span className="text-white text-xs font-bold">JD</span>
               </motion.div>
             </Link>
+
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              onClick={() => signOut().then(() => navigate('/login'))}
+              className={`p-1.5 rounded-full transition-colors ${
+                theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-white/60'
+              }`}
+            >
+              <LogOut className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`} />
+            </motion.button>
           </div>
         </div>
 

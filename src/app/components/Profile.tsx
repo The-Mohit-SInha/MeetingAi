@@ -1,48 +1,151 @@
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar as CalendarIcon,
-  Briefcase,
-  Award,
-  Edit,
-  Camera,
-  Save,
-  X,
-  Edit2
-} from "lucide-react";
-import { useState } from "react";
 import { useTheme } from "../context/ThemeContext";
-
-const userStats = [
-  { label: "Meetings Attended", value: "147", icon: CalendarIcon, gradient: "from-blue-500 to-cyan-500" },
-  { label: "Action Items Completed", value: "89", icon: Award, gradient: "from-green-500 to-emerald-500" },
-  { label: "Active Projects", value: "12", icon: Briefcase, gradient: "from-purple-500 to-pink-500" },
-];
-
-const activityLog = [
-  { date: "2026-03-31", action: "Completed 'Update API documentation'", type: "completion" },
-  { date: "2026-03-31", action: "Attended 'Product Roadmap Q2 Review'", type: "meeting" },
-  { date: "2026-03-30", action: "Created new action item", type: "creation" },
-  { date: "2026-03-30", action: "Attended 'Sprint Planning - Week 14'", type: "meeting" },
-  { date: "2026-03-29", action: "Completed 'Review design mockups'", type: "completion" },
-];
+import { useAuth } from "../context/AuthContext";
+import { userAPI, meetingsAPI, actionItemsAPI, participantsAPI } from "../services/apiWrapper";
+import {
+  Calendar as CalendarIcon,
+  Award,
+  Briefcase,
+  Mail,
+  Phone,
+  MapPin,
+  Edit,
+  Edit2,
+  Save,
+  User,
+  Loader2,
+  Camera
+} from "lucide-react";
 
 export function Profile() {
   const { theme, compactMode } = useTheme();
+  const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState({
-    name: "John Doe",
-    email: "john.doe@company.com",
-    phone: "+1 (555) 123-4567",
-    location: "San Francisco, CA",
-    role: "Product Manager",
-    department: "Engineering",
-    joinDate: "January 15, 2024",
-    bio: "Passionate about building great products and leading high-performing teams. Focused on innovation and user experience."
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    role: "",
+    department: "",
+    joinDate: "",
+    bio: ""
   });
+  const [profileStats, setProfileStats] = useState({
+    meetings: 0,
+    actions: 0,
+    completionRate: 0,
+  });
+
+  useEffect(() => {
+    fetchProfile();
+    fetchProfileStats();
+  }, [user]);
+
+  const fetchProfile = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const userData = await userAPI.getProfile(user.id);
+
+      setProfile({
+        name: userData.name || user.email?.split('@')[0] || '',
+        email: userData.email || user.email || '',
+        phone: userData.phone || '',
+        location: userData.location || '',
+        role: userData.role || '',
+        department: userData.department || '',
+        joinDate: new Date(userData.join_date || userData.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+        bio: userData.bio || ''
+      });
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchProfileStats = async () => {
+    if (!user) return;
+
+    try {
+      // Fetch all meetings and count user's participation
+      const allMeetings = await meetingsAPI.getAll();
+      let userMeetingCount = 0;
+
+      for (const meeting of allMeetings) {
+        const participants = await participantsAPI.getByMeeting(meeting.id);
+        // Check if user is a participant (by name or email)
+        const isParticipant = participants.some((p: any) => 
+          p.participant_name?.toLowerCase().includes(user.email?.toLowerCase()) ||
+          p.participant_name?.toLowerCase().includes(profile.name?.toLowerCase())
+        );
+        if (isParticipant) {
+          userMeetingCount++;
+        }
+      }
+
+      // Fetch all action items
+      const allActions = await actionItemsAPI.getAll();
+      const completedActions = allActions.filter((a: any) => a.status === 'completed').length;
+      const totalActions = allActions.length;
+      const completionRate = totalActions > 0 ? Math.round((completedActions / totalActions) * 100) : 0;
+
+      setProfileStats({
+        meetings: userMeetingCount,
+        actions: totalActions,
+        completionRate,
+      });
+    } catch (error) {
+      console.error("Error fetching profile stats:", error);
+      setProfileStats({ meetings: 0, actions: 0, completionRate: 0 });
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+    
+    try {
+      await userAPI.updateProfile(user.id, {
+        name: profile.name,
+        role: profile.role,
+        department: profile.department,
+        location: profile.location,
+        bio: profile.bio,
+      });
+      setIsEditing(false);
+      await fetchProfile(); // Refresh profile data after save
+    } catch (error) {
+      console.error("Error updating profile:", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="w-12 h-12 animate-spin text-purple-600" />
+      </div>
+    );
+  }
+
+  // Generate avatar initials from name or email
+  const getInitials = () => {
+    if (profile.name) {
+      return profile.name
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    if (profile.email) {
+      return profile.email.slice(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
 
   return (
     <div className={compactMode ? "space-y-4" : "space-y-6"}>
@@ -82,7 +185,7 @@ export function Profile() {
           <div className={`flex items-end justify-between ${compactMode ? '-mt-8 mb-3' : '-mt-12 mb-6'}`}>
             <div className="relative">
               <div className={`${compactMode ? 'w-16 h-16 text-xl' : 'w-24 h-24 text-3xl'} bg-gradient-to-br from-green-400 to-blue-500 ${compactMode ? 'rounded-xl' : 'rounded-2xl'} flex items-center justify-center text-white font-bold shadow-xl ring-4 ${theme === 'dark' ? 'ring-gray-800' : 'ring-white'}`}>
-                JD
+                {getInitials()}
               </div>
               <motion.button
                 whileHover={{ scale: 1.1 }}
@@ -118,7 +221,7 @@ export function Profile() {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsEditing(false)}
+                  onClick={handleSave}
                   className={`${compactMode ? 'px-3 py-1.5 text-sm rounded-lg' : 'px-4 py-2 rounded-full'} ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-900'} text-white font-semibold hover:shadow-lg`}
                 >
                   <Save className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} inline mr-2`} />
@@ -133,30 +236,75 @@ export function Profile() {
             {/* Name & Title */}
             <div>
               {isEditing ? (
-                <input
-                  type="text"
-                  value={profile.name}
-                  onChange={(e) => setProfile({...profile, name: e.target.value})}
-                  className={`${compactMode ? 'text-lg' : 'text-2xl'} font-bold mb-1 w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
-                    theme === 'dark' 
-                      ? 'bg-gray-800 text-white border-gray-700' 
-                      : 'bg-white text-gray-900 border-gray-200'
-                  } border`}
-                />
+                <>
+                  <input
+                    type="text"
+                    value={profile.name}
+                    onChange={(e) => setProfile({...profile, name: e.target.value})}
+                    placeholder=""
+                    className={`${compactMode ? 'text-lg' : 'text-2xl'} font-bold mb-2 w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
+                      theme === 'dark' 
+                        ? 'bg-gray-800 text-white border-gray-700' 
+                        : 'bg-white text-gray-900 border-gray-200'
+                    } border`}
+                  />
+                  <input
+                    type="text"
+                    value={profile.role}
+                    onChange={(e) => setProfile({...profile, role: e.target.value})}
+                    placeholder=""
+                    className={`${compactMode ? 'text-sm mb-1' : 'mb-2'} w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
+                      theme === 'dark' 
+                        ? 'bg-gray-800 text-white border-gray-700' 
+                        : 'bg-white text-gray-900 border-gray-200'
+                    } border`}
+                  />
+                  <input
+                    type="text"
+                    value={profile.department}
+                    onChange={(e) => setProfile({...profile, department: e.target.value})}
+                    placeholder=""
+                    className={`${compactMode ? 'text-sm mb-1' : 'mb-2'} w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
+                      theme === 'dark' 
+                        ? 'bg-gray-800 text-white border-gray-700' 
+                        : 'bg-white text-gray-900 border-gray-200'
+                    } border`}
+                  />
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-gray-500" />
+                    <input
+                      type="text"
+                      value={profile.location}
+                      onChange={(e) => setProfile({...profile, location: e.target.value})}
+                      placeholder=""
+                      className={`${compactMode ? 'text-sm' : ''} flex-1 ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
+                        theme === 'dark' 
+                          ? 'bg-gray-800 text-white border-gray-700' 
+                          : 'bg-white text-gray-900 border-gray-200'
+                      } border`}
+                    />
+                  </div>
+                </>
               ) : (
-                <h2 className={`${compactMode ? 'text-lg' : 'text-2xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  {profile.name}
-                </h2>
+                <>
+                  <h2 className={`${compactMode ? 'text-lg' : 'text-2xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    {profile.name || 'No name set'}
+                  </h2>
+                  {(profile.role || profile.department) && (
+                    <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {profile.role}{profile.role && profile.department && ' • '}{profile.department}
+                    </p>
+                  )}
+                  {profile.location && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <MapPin className="w-4 h-4 text-gray-500" />
+                      <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {profile.location}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
-              <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                {profile.role}  {profile.department}
-              </p>
-              <div className="flex items-center gap-2 mt-2">
-                <MapPin className="w-4 h-4 text-gray-500" />
-                <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {profile.location}
-                </span>
-              </div>
             </div>
 
             {/* Bio */}
@@ -168,6 +316,7 @@ export function Profile() {
                 <textarea
                   value={profile.bio}
                   onChange={(e) => setProfile({...profile, bio: e.target.value})}
+                  placeholder=""
                   rows={3}
                   className={`w-full px-3 py-2 rounded-lg ${
                     theme === 'dark' 
@@ -177,7 +326,7 @@ export function Profile() {
                 />
               ) : (
                 <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
-                  {profile.bio}
+                  {profile.bio || 'No bio added yet'}
                 </p>
               )}
             </div>
@@ -196,6 +345,7 @@ export function Profile() {
                     type="email"
                     value={profile.email}
                     onChange={(e) => setProfile({...profile, email: e.target.value})}
+                    placeholder=""
                     className={`w-full px-3 py-2 rounded-lg ${
                       theme === 'dark' 
                         ? 'bg-gray-800 text-white border-gray-700' 
@@ -204,7 +354,7 @@ export function Profile() {
                   />
                 ) : (
                   <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}>
-                    {profile.email}
+                    {profile.email || 'No email set'}
                   </p>
                 )}
               </div>
@@ -221,6 +371,7 @@ export function Profile() {
                     type="tel"
                     value={profile.phone}
                     onChange={(e) => setProfile({...profile, phone: e.target.value})}
+                    placeholder=""
                     className={`w-full px-3 py-2 rounded-lg ${
                       theme === 'dark' 
                         ? 'bg-gray-800 text-white border-gray-700' 
@@ -229,7 +380,7 @@ export function Profile() {
                   />
                 ) : (
                   <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}>
-                    {profile.phone}
+                    {profile.phone || 'No phone set'}
                   </p>
                 )}
               </div>
@@ -239,7 +390,7 @@ export function Profile() {
             <div className="grid grid-cols-3 gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
               <div className="text-center">
                 <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  147
+                  {profileStats.meetings}
                 </p>
                 <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   Meetings
@@ -247,7 +398,7 @@ export function Profile() {
               </div>
               <div className="text-center">
                 <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  89
+                  {profileStats.actions}
                 </p>
                 <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   Actions
@@ -255,7 +406,7 @@ export function Profile() {
               </div>
               <div className="text-center">
                 <p className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  92%
+                  {profileStats.completionRate}%
                 </p>
                 <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                   Completion

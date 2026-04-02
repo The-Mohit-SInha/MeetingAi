@@ -1,124 +1,43 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router";
-import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
+  Video, 
+  Plus, 
   Search, 
   Filter, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  Users, 
-  CheckCircle2,
-  Video,
+  Calendar as CalendarIcon,
+  Clock,
+  Users,
+  CheckSquare,
+  MoreVertical,
+  Edit,
+  Trash2,
+  X,
+  Loader2,
   ChevronDown,
   Download,
-  Plus,
-  TrendingUp
+  CheckCircle2
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
-
-const meetings = [
-  {
-    id: 1,
-    title: "Product Roadmap Q2 Review",
-    date: "2026-03-31",
-    time: "2:00 PM",
-    duration: "45 min",
-    participants: [
-      { name: "John Doe", avatar: "JD", color: "bg-blue-500" },
-      { name: "Sarah Chen", avatar: "SC", color: "bg-green-500" },
-      { name: "Mike Johnson", avatar: "MJ", color: "bg-purple-500" },
-    ],
-    actions: 5,
-    completed: 3,
-    status: "completed",
-    tags: ["Product", "Quarterly"],
-  },
-  {
-    id: 2,
-    title: "Sprint Planning - Week 14",
-    date: "2026-03-30",
-    time: "10:00 AM",
-    duration: "60 min",
-    participants: [
-      { name: "Emma Wilson", avatar: "EW", color: "bg-orange-500" },
-      { name: "David Lee", avatar: "DL", color: "bg-pink-500" },
-      { name: "Lisa Wang", avatar: "LW", color: "bg-indigo-500" },
-    ],
-    actions: 8,
-    completed: 6,
-    status: "completed",
-    tags: ["Development", "Sprint"],
-  },
-  {
-    id: 3,
-    title: "Client Discovery Call - Acme Corp",
-    date: "2026-03-29",
-    time: "3:30 PM",
-    duration: "30 min",
-    participants: [
-      { name: "Tom Harris", avatar: "TH", color: "bg-red-500" },
-      { name: "Rachel Green", avatar: "RG", color: "bg-teal-500" },
-    ],
-    actions: 3,
-    completed: 3,
-    status: "completed",
-    tags: ["Sales", "Client"],
-  },
-  {
-    id: 4,
-    title: "Design System Review",
-    date: "2026-03-28",
-    time: "11:00 AM",
-    duration: "90 min",
-    participants: [
-      { name: "Alex Turner", avatar: "AT", color: "bg-yellow-500" },
-      { name: "Maya Patel", avatar: "MP", color: "bg-cyan-500" },
-      { name: "Chris Anderson", avatar: "CA", color: "bg-lime-500" },
-    ],
-    actions: 12,
-    completed: 9,
-    status: "completed",
-    tags: ["Design", "Review"],
-  },
-  {
-    id: 5,
-    title: "Marketing Campaign Kickoff",
-    date: "2026-03-27",
-    time: "1:00 PM",
-    duration: "45 min",
-    participants: [
-      { name: "Nina Rodriguez", avatar: "NR", color: "bg-rose-500" },
-      { name: "Sam Foster", avatar: "SF", color: "bg-violet-500" },
-    ],
-    actions: 6,
-    completed: 2,
-    status: "completed",
-    tags: ["Marketing", "Campaign"],
-  },
-  {
-    id: 6,
-    title: "Technical Architecture Discussion",
-    date: "2026-03-26",
-    time: "4:00 PM",
-    duration: "120 min",
-    participants: [
-      { name: "Kevin Park", avatar: "KP", color: "bg-amber-500" },
-      { name: "Olivia Martinez", avatar: "OM", color: "bg-emerald-500" },
-      { name: "Brian Scott", avatar: "BS", color: "bg-fuchsia-500" },
-    ],
-    actions: 15,
-    completed: 10,
-    status: "completed",
-    tags: ["Engineering", "Architecture"],
-  },
-];
+import { useAuth } from "../context/AuthContext";
+import { meetingsAPI, participantsAPI } from "../services/apiWrapper";
 
 export function Meetings() {
   const { theme, compactMode } = useTheme();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [showNewMeetingModal, setShowNewMeetingModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalMeetings: 0,
+    thisWeek: 0,
+    totalHours: 0,
+    participants: 0,
+  });
   const [newMeeting, setNewMeeting] = useState({
     title: "",
     date: "",
@@ -128,19 +47,104 @@ export function Meetings() {
     tags: "",
   });
 
-  const handleCreateMeeting = () => {
-    // In a real app, this would save to a database
-    console.log("Creating meeting:", newMeeting);
-    setShowNewMeetingModal(false);
-    // Reset form
-    setNewMeeting({
-      title: "",
-      date: "",
-      time: "",
-      duration: "30",
-      participants: "",
-      tags: "",
-    });
+  useEffect(() => {
+    fetchMeetings();
+  }, []);
+
+  const fetchMeetings = async () => {
+    try {
+      setLoading(true);
+      const data = await meetingsAPI.getAll();
+
+      // Fetch participants for each meeting
+      const meetingsWithParticipants = await Promise.all(
+        data.map(async (meeting: any) => {
+          const participants = await participantsAPI.getByMeeting(meeting.id);
+          return {
+            ...meeting,
+            participants: participants.map((p: any) => ({
+              name: p.participant_name,
+              avatar: p.participant_name.split(' ').map((n: string) => n[0]).join(''),
+              color: `bg-${['blue', 'green', 'purple', 'orange', 'pink'][Math.floor(Math.random() * 5)]}-500`,
+            })),
+            actions: 0,
+            completed: 0,
+            tags: [],
+          };
+        })
+      );
+
+      setMeetings(meetingsWithParticipants);
+
+      // Calculate stats from actual data
+      const totalMeetings = meetingsWithParticipants.length;
+      const uniqueParticipants = new Set();
+      let totalMinutes = 0;
+      let thisWeekCount = 0;
+
+      const now = new Date();
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      meetingsWithParticipants.forEach((meeting: any) => {
+        // Count participants
+        meeting.participants.forEach((p: any) => uniqueParticipants.add(p.name));
+
+        // Calculate total hours
+        const durationMatch = meeting.duration?.match(/(\d+)/);
+        if (durationMatch) {
+          totalMinutes += parseInt(durationMatch[1]);
+        }
+
+        // Count this week's meetings
+        const meetingDate = new Date(meeting.date);
+        if (meetingDate >= oneWeekAgo && meetingDate <= now) {
+          thisWeekCount++;
+        }
+      });
+
+      setStats({
+        totalMeetings,
+        thisWeek: thisWeekCount,
+        totalHours: parseFloat((totalMinutes / 60).toFixed(1)),
+        participants: uniqueParticipants.size,
+      });
+    } catch (error) {
+      console.error("Error fetching meetings:", error);
+      setMeetings([]);
+      setStats({ totalMeetings: 0, thisWeek: 0, totalHours: 0, participants: 0 });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateMeeting = async () => {
+    try {
+      await meetingsAPI.create({
+        title: newMeeting.title,
+        date: newMeeting.date,
+        time: newMeeting.time,
+        duration: `${newMeeting.duration} min`,
+        status: 'scheduled',
+        summary: null,
+        transcript: null,
+        location: null,
+        recording_url: null,
+      });
+
+      setShowNewMeetingModal(false);
+      setNewMeeting({
+        title: "",
+        date: "",
+        time: "",
+        duration: "30",
+        participants: "",
+        tags: "",
+      });
+
+      fetchMeetings();
+    } catch (error) {
+      console.error("Error creating meeting:", error);
+    }
   };
 
   return (
@@ -180,19 +184,19 @@ export function Meetings() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="text-center">
             <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mb-1`}>Total Meetings</p>
-            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>147</p>
+            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.totalMeetings}</p>
           </div>
           <div className="text-center">
             <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mb-1`}>This Week</p>
-            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>12</p>
+            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.thisWeek}</p>
           </div>
           <div className="text-center">
             <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mb-1`}>Total Hours</p>
-            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>68.5</p>
+            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.totalHours}</p>
           </div>
           <div className="text-center">
             <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mb-1`}>Participants</p>
-            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>24</p>
+            <p className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{stats.participants}</p>
           </div>
         </div>
       </motion.div>
@@ -292,7 +296,28 @@ export function Meetings() {
         transition={{ delay: 0.2 }}
         className="space-y-3"
       >
-        {meetings.map((meeting, index) => (
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          </div>
+        ) : meetings.length === 0 ? (
+          <div className="glass-card rounded-xl p-8 text-center">
+            <Video className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+            <h3 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              No meetings yet
+            </h3>
+            <p className={`text-sm mb-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              Get started by creating your first meeting
+            </p>
+            <button
+              onClick={() => setShowNewMeetingModal(true)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              Create Meeting
+            </button>
+          </div>
+        ) :
+          meetings.map((meeting, index) => (
           <Link key={meeting.id} to={`/meetings/${meeting.id}`}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -370,7 +395,8 @@ export function Meetings() {
               </div>
             </motion.div>
           </Link>
-        ))}
+        ))
+        }
       </motion.div>
 
       {/* New Meeting Modal */}

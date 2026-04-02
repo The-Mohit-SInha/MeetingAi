@@ -1,172 +1,67 @@
-import { useState } from "react";
+import { motion } from "motion/react";
+import { useState, useEffect } from "react";
+import { useTheme } from "../context/ThemeContext";
+import { participantsAPI } from "../services/apiWrapper";
 import { 
   Search, 
   Mail, 
   Phone, 
-  Calendar as CalendarIcon,
-  TrendingUp,
-  Award,
-  Clock
+  Users, 
+  Calendar as CalendarIcon, 
+  Award, 
+  TrendingUp, 
+  Clock, 
+  Loader2 
 } from "lucide-react";
-import { motion } from "motion/react";
-import { useTheme } from "../context/ThemeContext";
-
-const participants = [
-  {
-    id: 1,
-    name: "Sarah Chen",
-    email: "sarah.chen@company.com",
-    role: "Engineering Lead",
-    department: "Engineering",
-    avatar: "SC",
-    color: "bg-green-500",
-    stats: {
-      meetings: 42,
-      actions: 28,
-      completionRate: 95,
-      avgResponseTime: "2.3 hours",
-    },
-  },
-  {
-    id: 2,
-    name: "John Doe",
-    email: "john.doe@company.com",
-    role: "Product Manager",
-    department: "Product",
-    avatar: "JD",
-    color: "bg-blue-500",
-    stats: {
-      meetings: 38,
-      actions: 25,
-      completionRate: 88,
-      avgResponseTime: "3.1 hours",
-    },
-  },
-  {
-    id: 3,
-    name: "Mike Johnson",
-    email: "mike.johnson@company.com",
-    role: "Senior Designer",
-    department: "Design",
-    avatar: "MJ",
-    color: "bg-purple-500",
-    stats: {
-      meetings: 35,
-      actions: 31,
-      completionRate: 92,
-      avgResponseTime: "1.8 hours",
-    },
-  },
-  {
-    id: 4,
-    name: "Emma Wilson",
-    email: "emma.wilson@company.com",
-    role: "Marketing Manager",
-    department: "Marketing",
-    avatar: "EW",
-    color: "bg-orange-500",
-    stats: {
-      meetings: 32,
-      actions: 22,
-      completionRate: 85,
-      avgResponseTime: "4.2 hours",
-    },
-  },
-  {
-    id: 5,
-    name: "David Lee",
-    email: "david.lee@company.com",
-    role: "Backend Engineer",
-    department: "Engineering",
-    avatar: "DL",
-    color: "bg-pink-500",
-    stats: {
-      meetings: 28,
-      actions: 19,
-      completionRate: 90,
-      avgResponseTime: "2.7 hours",
-    },
-  },
-  {
-    id: 6,
-    name: "Lisa Wang",
-    email: "lisa.wang@company.com",
-    role: "UX Researcher",
-    department: "Design",
-    avatar: "LW",
-    color: "bg-indigo-500",
-    stats: {
-      meetings: 26,
-      actions: 18,
-      completionRate: 94,
-      avgResponseTime: "3.5 hours",
-    },
-  },
-  {
-    id: 7,
-    name: "Tom Harris",
-    email: "tom.harris@company.com",
-    role: "Sales Director",
-    department: "Sales",
-    avatar: "TH",
-    color: "bg-red-500",
-    stats: {
-      meetings: 45,
-      actions: 15,
-      completionRate: 78,
-      avgResponseTime: "5.1 hours",
-    },
-  },
-  {
-    id: 8,
-    name: "Rachel Green",
-    email: "rachel.green@company.com",
-    role: "Account Manager",
-    department: "Sales",
-    avatar: "RG",
-    color: "bg-teal-500",
-    stats: {
-      meetings: 31,
-      actions: 20,
-      completionRate: 86,
-      avgResponseTime: "3.8 hours",
-    },
-  },
-  {
-    id: 9,
-    name: "Alex Turner",
-    email: "alex.turner@company.com",
-    role: "Frontend Engineer",
-    department: "Engineering",
-    avatar: "AT",
-    color: "bg-yellow-500",
-    stats: {
-      meetings: 29,
-      actions: 24,
-      completionRate: 91,
-      avgResponseTime: "2.1 hours",
-    },
-  },
-  {
-    id: 10,
-    name: "Maya Patel",
-    email: "maya.patel@company.com",
-    role: "Product Designer",
-    department: "Design",
-    avatar: "MP",
-    color: "bg-cyan-500",
-    stats: {
-      meetings: 27,
-      actions: 26,
-      completionRate: 96,
-      avgResponseTime: "1.5 hours",
-    },
-  },
-];
 
 export function Participants() {
   const { theme, compactMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [participants, setParticipants] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchParticipants();
+  }, []);
+
+  const fetchParticipants = async () => {
+    try {
+      setLoading(true);
+      const data = await participantsAPI.getAll();
+
+      // Group by participant name and aggregate stats
+      const participantMap = new Map();
+      data.forEach((p: any) => {
+        if (!participantMap.has(p.participant_name)) {
+          participantMap.set(p.participant_name, {
+            id: p.id,
+            name: p.participant_name,
+            email: p.participant_email || `${p.participant_name.toLowerCase().replace(' ', '.')}@company.com`,
+            role: p.role || 'Team Member',
+            department: 'General',
+            avatar: p.participant_name.split(' ').map((n: string) => n[0]).join(''),
+            color: `bg-${['blue', 'green', 'purple', 'orange', 'pink'][Math.floor(Math.random() * 5)]}-500`,
+            stats: {
+              meetings: 1,
+              actions: 0,
+              completionRate: 0,
+              avgResponseTime: "N/A",
+            },
+          });
+        } else {
+          const existing = participantMap.get(p.participant_name);
+          existing.stats.meetings += 1;
+        }
+      });
+
+      setParticipants(Array.from(participantMap.values()));
+    } catch (error) {
+      console.error("Error fetching participants:", error);
+      setParticipants([]);
+    } finally {
+      setLoading(false);
+    }
+  };
   const [selectedDepartment, setSelectedDepartment] = useState("all");
 
   const filteredParticipants = participants.filter(p => {
@@ -241,7 +136,22 @@ export function Participants() {
 
       {/* Participants Grid */}
       <div className={`grid grid-cols-1 lg:grid-cols-2 ${compactMode ? 'gap-3' : 'gap-4'}`}>
-        {filteredParticipants.map((participant, index) => (
+        {loading ? (
+          <div className="col-span-2 flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          </div>
+        ) : filteredParticipants.length === 0 ? (
+          <div className="col-span-2 glass-card rounded-xl p-8 text-center">
+            <Users className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+            <h3 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              {participants.length === 0 ? 'No participants yet' : 'No participants found'}
+            </h3>
+            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              {participants.length === 0 ? 'Participants will appear here once meetings are created' : 'Try adjusting your search or filters'}
+            </p>
+          </div>
+        ) :
+          filteredParticipants.map((participant, index) => (
           <motion.div
             key={participant.id}
             initial={{ opacity: 0, y: 20 }}
@@ -322,10 +232,11 @@ export function Participants() {
               </div>
             </div>
           </motion.div>
-        ))}
+        ))
+        }
       </div>
 
-      {filteredParticipants.length === 0 && (
+      {filteredParticipants.length === 0 && !loading && participants.length > 0 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

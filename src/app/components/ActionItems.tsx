@@ -1,94 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Link } from "react-router";
 import { 
+  CheckCircle2, 
+  Clock, 
+  Circle,
+  AlertCircle,
+  Plus, 
   Search, 
   Filter, 
-  CheckCircle2, 
-  Circle, 
-  Clock,
-  AlertCircle,
   ChevronDown,
+  Video,
   User,
-  Calendar,
-  Target,
-  Zap,
-  TrendingUp,
-  Flag,
-  Video
+  Calendar as CalendarIcon,
+  Loader2,
+  Edit,
+  Trash2,
+  X,
+  Flag
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
-
-const actionItems = [
-  {
-    id: 1,
-    task: "Finalize mobile optimization technical spec",
-    description: "Complete detailed technical specification for mobile performance improvements including lazy loading, image optimization, and bundle size reduction strategies.",
-    assignee: { name: "Sarah Chen", avatar: "SC", color: "bg-green-500" },
-    meeting: "Product Roadmap Q2 Review",
-    meetingId: 1,
-    dueDate: "2026-04-05",
-    priority: "high",
-    status: "completed",
-    completedDate: "2026-04-04",
-  },
-  {
-    id: 2,
-    task: "Update API documentation",
-    description: "Review and update REST API documentation to reflect recent endpoint changes and add examples for new authentication flow.",
-    assignee: { name: "Mike Johnson", avatar: "MJ", color: "bg-purple-500" },
-    meeting: "Sprint Planning - Week 14",
-    meetingId: 2,
-    dueDate: "2026-04-02",
-    priority: "high",
-    status: "in-progress",
-  },
-  {
-    id: 3,
-    task: "Create marketing campaign for collaboration features",
-    description: "Develop comprehensive marketing strategy including social media content, blog posts, and email campaigns for the new collaboration features launch.",
-    assignee: { name: "Emma Wilson", avatar: "EW", color: "bg-orange-500" },
-    meeting: "Product Roadmap Q2 Review",
-    meetingId: 1,
-    dueDate: "2026-04-10",
-    priority: "high",
-    status: "in-progress",
-  },
-  {
-    id: 4,
-    task: "Schedule follow-up with Acme Corp",
-    description: "Coordinate calendars and schedule follow-up discovery call to discuss implementation timeline and resource requirements.",
-    assignee: { name: "John Doe", avatar: "JD", color: "bg-blue-500" },
-    meeting: "Client Discovery Call - Acme Corp",
-    meetingId: 3,
-    dueDate: "2026-04-03",
-    priority: "medium",
-    status: "pending",
-  },
-  {
-    id: 5,
-    task: "Complete analytics dashboard wireframes",
-    description: "Design wireframes for the new analytics dashboard including data visualization components, filter options, and export functionality.",
-    assignee: { name: "Mike Johnson", avatar: "MJ", color: "bg-purple-500" },
-    meeting: "Product Roadmap Q2 Review",
-    meetingId: 1,
-    dueDate: "2026-04-08",
-    priority: "medium",
-    status: "completed",
-    completedDate: "2026-04-07",
-  },
-  {
-    id: 6,
-    task: "Review design mockups for v2.0",
-    description: "Conduct thorough review of all design mockups for version 2.0 release and provide detailed feedback on user experience and visual design.",
-    assignee: { name: "Sarah Chen", avatar: "SC", color: "bg-green-500" },
-    meeting: "Design System Review",
-    meetingId: 4,
-    dueDate: "2026-04-02",
-    priority: "high",
-    status: "in-progress",
-  },
-];
+import { useAuth } from "../context/AuthContext";
+import { actionItemsAPI } from "../services/apiWrapper";
 
 const priorityConfig = {
   high: { color: "from-red-500 to-pink-500", icon: AlertCircle, label: "High" },
@@ -98,17 +30,48 @@ const priorityConfig = {
 
 const statusConfig = {
   completed: { color: "from-green-500 to-emerald-500", icon: CheckCircle2, label: "Completed" },
-  "in-progress": { color: "from-purple-500 to-pink-500", icon: Zap, label: "In Progress" },
-  pending: { color: "from-gray-500 to-gray-600", icon: Circle, label: "Pending" },
+  in_progress: { color: "from-blue-500 to-indigo-500", icon: Clock, label: "In Progress" },
+  todo: { color: "from-gray-500 to-slate-500", icon: Circle, label: "To Do" },
 };
 
 export function ActionItems() {
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [priorityFilterOpen, setPriorityFilterOpen] = useState(false);
   const [selectedPriority, setSelectedPriority] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [actionItems, setActionItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchActionItems();
+  }, []);
+
+  const fetchActionItems = async () => {
+    try {
+      setLoading(true);
+      const data = await actionItemsAPI.getAll();
+      setActionItems(data.map((item: any) => ({
+        ...item,
+        task: item.title,
+        assignee: {
+          name: item.assignee,
+          avatar: item.assignee.split(' ').map((n: string) => n[0]).join(''),
+          color: `bg-${['blue', 'green', 'purple', 'orange', 'pink'][Math.floor(Math.random() * 5)]}-500`,
+        },
+        meeting: null,
+        meetingId: item.meeting_id,
+        dueDate: item.due_date,
+      })));
+    } catch (error) {
+      console.error("Error fetching action items:", error);
+      setActionItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredActions = actionItems.filter((action) => {
     const matchesSearch = action.task.toLowerCase().includes(searchQuery.toLowerCase());
@@ -308,11 +271,26 @@ export function ActionItems() {
         transition={{ delay: 0.25 }}
         className="space-y-3"
       >
-        {filteredActions.map((action, index) => {
-          const StatusIcon = statusConfig[action.status].icon;
-          const statusColor = statusConfig[action.status].color;
-          
-          return (
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          </div>
+        ) : filteredActions.length === 0 ? (
+          <div className="glass-card rounded-xl p-8 text-center">
+            <CheckCircle2 className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+            <h3 className={`text-lg font-semibold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+              No action items found
+            </h3>
+            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              {actionItems.length === 0 ? 'Create your first action item from a meeting' : 'Try adjusting your filters'}
+            </p>
+          </div>
+        ) :
+          filteredActions.map((action, index) => {
+            const StatusIcon = statusConfig[action.status]?.icon || Circle;
+            const statusColor = statusConfig[action.status]?.color || "from-gray-500 to-slate-500";
+
+            return (
             <motion.div
               key={action.id}
               initial={{ opacity: 0, y: 20 }}
@@ -350,7 +328,7 @@ export function ActionItems() {
                       {action.assignee.name}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
+                      <CalendarIcon className="w-3 h-3" />
                       Due: {action.dueDate}
                     </span>
                     <span className="flex items-center gap-1">
@@ -374,20 +352,9 @@ export function ActionItems() {
               </div>
             </motion.div>
           );
-        })}
+        })
+        }
       </motion.div>
-
-      {filteredActions.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="glass-card rounded-xl p-8 text-center"
-        >
-          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-            No action items found matching your filters
-          </p>
-        </motion.div>
-      )}
     </div>
   );
 }

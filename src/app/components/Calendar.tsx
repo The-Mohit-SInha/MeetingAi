@@ -1,26 +1,21 @@
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Video, Users, X, Clock, Calendar as CalendarIcon } from "lucide-react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Video,
+  Calendar as CalendarIcon,
+  Clock,
+  Users,
+  Plus,
+  X,
+  Check,
+  Loader2
+} from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router";
-
-const meetings = [
-  { id: 1, title: "Team Standup", date: "2026-04-01", time: "9:00 AM", duration: "15 min", participants: 8, type: "recurring" },
-  { id: 2, title: "Client Presentation", date: "2026-04-01", time: "2:00 PM", duration: "60 min", participants: 5, type: "one-time" },
-  { id: 3, title: "Product Review", date: "2026-04-02", time: "10:00 AM", duration: "45 min", participants: 6, type: "recurring" },
-  { id: 4, title: "Sprint Planning", date: "2026-04-03", time: "11:00 AM", duration: "90 min", participants: 12, type: "recurring" },
-  { id: 5, title: "Design Critique", date: "2026-04-03", time: "3:00 PM", duration: "30 min", participants: 4, type: "recurring" },
-  { id: 6, title: "All Hands Meeting", date: "2026-04-04", time: "1:00 PM", duration: "60 min", participants: 45, type: "recurring" },
-  { id: 7, title: "1:1 with Sarah", date: "2026-04-04", time: "4:00 PM", duration: "30 min", participants: 2, type: "recurring" },
-  { id: 8, title: "Q2 Planning Workshop", date: "2026-04-07", time: "9:00 AM", duration: "180 min", participants: 15, type: "one-time" },
-  { id: 9, title: "Marketing Sync", date: "2026-04-08", time: "10:30 AM", duration: "30 min", participants: 6, type: "recurring" },
-  { id: 10, title: "Customer Discovery", date: "2026-04-09", time: "2:00 PM", duration: "45 min", participants: 3, type: "one-time" },
-  { id: 11, title: "Engineering Retro", date: "2026-04-10", time: "3:00 PM", duration: "60 min", participants: 10, type: "recurring" },
-  { id: 12, title: "Board Meeting Prep", date: "2026-04-11", time: "11:00 AM", duration: "90 min", participants: 5, type: "one-time" },
-  { id: 13, title: "Security Review", date: "2026-04-14", time: "1:00 PM", duration: "60 min", participants: 7, type: "recurring" },
-  { id: 14, title: "Team Building", date: "2026-04-15", time: "4:00 PM", duration: "120 min", participants: 20, type: "one-time" },
-  { id: 15, title: "Analytics Review", date: "2026-04-16", time: "10:00 AM", duration: "45 min", participants: 8, type: "recurring" },
-];
+import { meetingsAPI } from "../services/apiWrapper";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -30,6 +25,8 @@ export function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date(2026, 3, 1)); // April 2026
   const [view, setView] = useState<"month" | "week">("month");
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [meetings, setMeetings] = useState<any[]>([]);
   const [meetingForm, setMeetingForm] = useState({
     title: "",
     date: "",
@@ -37,6 +34,31 @@ export function Calendar() {
     duration: "30",
     participants: "",
   });
+
+  useEffect(() => {
+    fetchMeetings();
+  }, []);
+
+  const fetchMeetings = async () => {
+    try {
+      setLoading(true);
+      const data = await meetingsAPI.getAll();
+      setMeetings(data.map((m: any) => ({
+        id: m.id,
+        title: m.title,
+        date: m.date,
+        time: m.time,
+        duration: m.duration,
+        participants: 0,
+        type: 'one-time',
+      })));
+    } catch (error) {
+      console.error("Error fetching meetings:", error);
+      setMeetings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -215,7 +237,12 @@ export function Calendar() {
         </div>
 
         {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-2">
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-7 gap-2">
           {/* Day Headers */}
           {daysOfWeek.map((day) => (
             <div
@@ -293,6 +320,7 @@ export function Calendar() {
             );
           })}
         </div>
+        )}
       </motion.div>
 
       {/* Upcoming Meetings List */}

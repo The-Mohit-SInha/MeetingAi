@@ -1,151 +1,167 @@
-import { Link } from "react-router";
+import { Video, CheckCircle2, Clock, Users, ArrowUpRight, ArrowDownRight, ArrowRight, Loader2, TrendingUp, Check, Play } from "lucide-react";
 import { motion } from "motion/react";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Video, 
-  CheckCircle2, 
-  Clock, 
-  Users,
-  Calendar as CalendarIcon,
-  AlertCircle,
-  ArrowRight,
-  Sparkles,
-  Play,
-  Pause,
-  Check
-} from "lucide-react";
-import { MeetingsAreaChart, ActionsLineChart } from "./ChartComponents";
+import { useState, useEffect } from "react";
+import { Link } from "react-router";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useTheme } from "../context/ThemeContext";
-
-const stats = [
-  {
-    name: "Total Meetings",
-    value: "147",
-    change: "+12.5%",
-    trend: "up",
-    icon: Video,
-    gradient: "from-blue-500 to-cyan-500",
-    link: "/meetings",
-  },
-  {
-    name: "Action Items",
-    value: "89",
-    change: "-5.2%",
-    trend: "down",
-    icon: CheckCircle2,
-    gradient: "from-green-500 to-emerald-500",
-    link: "/actions",
-  },
-  {
-    name: "Pending Tasks",
-    value: "34",
-    change: "+8.1%",
-    trend: "up",
-    icon: Clock,
-    gradient: "from-orange-500 to-red-500",
-    link: "/actions",
-  },
-  {
-    name: "Active Participants",
-    value: "24",
-    change: "+3",
-    trend: "up",
-    icon: Users,
-    gradient: "from-purple-500 to-pink-500",
-    link: "/participants",
-  },
-];
-
-const meetingData = [
-  { day: "Mon", meetings: 4, id: "mon" },
-  { day: "Tue", meetings: 6, id: "tue" },
-  { day: "Wed", meetings: 3, id: "wed" },
-  { day: "Thu", meetings: 8, id: "thu" },
-  { day: "Fri", meetings: 5, id: "fri" },
-  { day: "Sat", meetings: 1, id: "sat" },
-  { day: "Sun", meetings: 0, id: "sun" },
-];
-
-const actionData = [
-  { week: "Week 1", created: 24, completed: 20, id: "wk1" },
-  { week: "Week 2", created: 32, completed: 28, id: "wk2" },
-  { week: "Week 3", created: 28, completed: 30, id: "wk3" },
-  { week: "Week 4", created: 35, completed: 32, id: "wk4" },
-];
-
-const recentMeetings = [
-  {
-    id: 1,
-    title: "Product Roadmap Q2 Review",
-    date: "2026-03-31",
-    time: "2:00 PM",
-    duration: "45 min",
-    participants: 8,
-    actions: 5,
-    status: "completed",
-  },
-  {
-    id: 2,
-    title: "Sprint Planning - Week 14",
-    date: "2026-03-30",
-    time: "10:00 AM",
-    duration: "60 min",
-    participants: 12,
-    actions: 8,
-    status: "completed",
-  },
-  {
-    id: 3,
-    title: "Client Discovery Call - Acme Corp",
-    date: "2026-03-29",
-    time: "3:30 PM",
-    duration: "30 min",
-    participants: 4,
-    actions: 3,
-    status: "completed",
-  },
-  {
-    id: 4,
-    title: "Design System Review",
-    date: "2026-03-28",
-    time: "11:00 AM",
-    duration: "90 min",
-    participants: 6,
-    actions: 12,
-    status: "completed",
-  },
-];
-
-const priorityActions = [
-  {
-    id: 1,
-    title: "Update API documentation",
-    assignee: "Sarah Chen",
-    dueDate: "2026-04-02",
-    priority: "high",
-    status: "in-progress",
-  },
-  {
-    id: 2,
-    title: "Review design mockups for v2.0",
-    assignee: "Mike Johnson",
-    dueDate: "2026-04-02",
-    priority: "high",
-    status: "pending",
-  },
-  {
-    id: 3,
-    title: "Schedule follow-up with Acme Corp",
-    assignee: "Emma Wilson",
-    dueDate: "2026-04-03",
-    priority: "medium",
-    status: "completed",
-  },
-];
+import { useAuth } from "../context/AuthContext";
+import { meetingsAPI, actionItemsAPI, analyticsAPI } from "../services/apiWrapper";
+import { MeetingsAreaChart, ActionsLineChart } from "./ChartComponents";
 
 export function Overview() {
   const { theme, compactMode } = useTheme();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalMeetings: 0,
+    actionItems: 0,
+    pendingTasks: 0,
+    activeParticipants: 0,
+  });
+  const [recentMeetings, setRecentMeetings] = useState<any[]>([]);
+  const [priorityActions, setPriorityActions] = useState<any[]>([]);
+  const [meetingData, setMeetingData] = useState<any[]>([]);
+  const [actionData, setActionData] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch meetings stats
+        const meetingStats = await analyticsAPI.getMeetingStats(user.id);
+
+        // Fetch action items stats
+        const actionStats = await analyticsAPI.getActionItemStats(user.id);
+
+        // Fetch recent meetings
+        const meetings = await meetingsAPI.getAll(user.id);
+        const sortedMeetings = meetings.slice(0, 4);
+
+        // Fetch recent action items
+        const actions = await actionItemsAPI.getAll(user.id);
+        const highPriorityActions = actions
+          .filter((a: any) => a.priority === 'high' || a.priority === 'medium')
+          .slice(0, 3);
+
+        // Update stats
+        setStats({
+          totalMeetings: meetingStats.total,
+          actionItems: actionStats.total,
+          pendingTasks: actionStats.todo + actionStats.in_progress,
+          activeParticipants: 0, // This would need a separate query
+        });
+
+        setRecentMeetings(sortedMeetings);
+        setPriorityActions(highPriorityActions);
+
+        // Generate meeting trend data (last 7 days)
+        const last7Days = Array.from({ length: 7 }, (_, i) => {
+          const date = new Date();
+          date.setDate(date.getDate() - (6 - i));
+          return date.toISOString().split('T')[0];
+        });
+
+        const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const meetingsByDay = last7Days.map((date, index) => {
+          const count = meetings.filter((m: any) => m.date === date).length;
+          const dayIndex = new Date(date).getDay();
+          return {
+            day: daysOfWeek[dayIndex],
+            meetings: count,
+            id: `day-${index}`,
+          };
+        });
+
+        setMeetingData(meetingsByDay);
+
+        // Generate action items trend data (last 4 weeks)
+        const weeklyActionData = Array.from({ length: 4 }, (_, i) => {
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - (i * 7));
+          const weekAgoStr = weekAgo.toISOString().split('T')[0];
+
+          const created = actions.filter((a: any) => {
+            const createdDate = new Date(a.created_at).toISOString().split('T')[0];
+            return createdDate >= weekAgoStr;
+          }).length;
+
+          const completed = actions.filter((a: any) => {
+            const completedDate = a.updated_at ? new Date(a.updated_at).toISOString().split('T')[0] : null;
+            return a.status === 'completed' && completedDate && completedDate >= weekAgoStr;
+          }).length;
+
+          return {
+            week: `Week ${4 - i}`,
+            created: Math.floor(created / (i + 1)),
+            completed: Math.floor(completed / (i + 1)),
+            id: `wk-${i}`,
+          };
+        }).reverse();
+
+        setActionData(weeklyActionData);
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="min-h-[400px] flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-purple-600 mx-auto mb-4" />
+          <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const statCards = [
+    {
+      name: "Total Meetings",
+      value: stats.totalMeetings.toString(),
+      change: "+12.5%",
+      trend: "up",
+      icon: Video,
+      gradient: "from-blue-500 to-cyan-500",
+      link: "/meetings",
+    },
+    {
+      name: "Action Items",
+      value: stats.actionItems.toString(),
+      change: "-5.2%",
+      trend: "down",
+      icon: CheckCircle2,
+      gradient: "from-green-500 to-emerald-500",
+      link: "/actions",
+    },
+    {
+      name: "Pending Tasks",
+      value: stats.pendingTasks.toString(),
+      change: "+8.1%",
+      trend: "up",
+      icon: Clock,
+      gradient: "from-orange-500 to-red-500",
+      link: "/actions",
+    },
+    {
+      name: "Active Participants",
+      value: stats.activeParticipants.toString(),
+      change: "+3",
+      trend: "up",
+      icon: Users,
+      gradient: "from-purple-500 to-pink-500",
+      link: "/participants",
+    },
+  ];
 
   return (
     <div className={compactMode ? "space-y-4" : "space-y-6"}>
@@ -164,7 +180,7 @@ export function Overview() {
 
       {/* Stats Grid */}
       <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 ${compactMode ? 'gap-3' : 'gap-4'}`}>
-        {stats.map((stat, index) => (
+        {statCards.map((stat, index) => (
           <motion.div
             key={stat.name}
             initial={{ opacity: 0, y: 20 }}
@@ -183,7 +199,7 @@ export function Overview() {
                       ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" 
                       : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                   }`}>
-                    {stat.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {stat.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                     {stat.change}
                   </div>
                 </div>
@@ -212,7 +228,7 @@ export function Overview() {
             <h3 className={`${compactMode ? 'text-sm' : 'text-base'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
               Weekly Meetings
             </h3>
-            <CalendarIcon className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'} ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
+            <Video className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'} ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
           </div>
           <div className={compactMode ? "h-[160px] w-full" : "h-[200px] w-full"} style={{ minHeight: compactMode ? '160px' : '200px' }}>
             <MeetingsAreaChart data={meetingData} />
@@ -262,7 +278,20 @@ export function Overview() {
             </Link>
           </div>
           <div className={compactMode ? "space-y-2" : "space-y-3"}>
-            {recentMeetings.slice(0, 3).map((meeting, index) => (
+            {recentMeetings.length === 0 ? (
+              <div className="text-center py-8">
+                <Video className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  No meetings yet
+                </p>
+                <Link to="/meetings">
+                  <button className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                    Create your first meeting
+                  </button>
+                </Link>
+              </div>
+            ) :
+              recentMeetings.slice(0, 3).map((meeting, index) => (
               <Link key={meeting.id} to={`/meetings/${meeting.id}`}>
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
@@ -290,18 +319,21 @@ export function Overview() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs flex-shrink-0">
-                      <span className={`flex items-center gap-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                        <Users className="w-3 h-3" />
-                        {meeting.participants}
-                      </span>
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full text-xs font-bold">
-                        {meeting.actions}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        meeting.status === 'completed'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                          : meeting.status === 'scheduled'
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                      }`}>
+                        {meeting.status}
                       </span>
                     </div>
                   </div>
                 </motion.div>
               </Link>
-            ))}
+            ))
+            }
           </div>
         </motion.div>
 
@@ -327,7 +359,20 @@ export function Overview() {
             </Link>
           </div>
           <div className={compactMode ? "space-y-2" : "space-y-3"}>
-            {priorityActions.slice(0, 3).map((action, index) => (
+            {priorityActions.length === 0 ? (
+              <div className="text-center py-8">
+                <CheckCircle2 className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                  No action items yet
+                </p>
+                <Link to="/actions">
+                  <button className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                    Create your first action item
+                  </button>
+                </Link>
+              </div>
+            ) :
+              priorityActions.slice(0, 3).map((action, index) => (
               <Link key={action.id} to={`/actions`}>
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
@@ -340,15 +385,15 @@ export function Overview() {
                 >
                   <div className="flex items-start gap-2">
                     <div className={`mt-0.5 ${
-                      action.status === 'completed' 
-                        ? 'text-green-500' 
-                        : action.status === 'in-progress' 
-                        ? 'text-blue-500' 
+                      action.status === 'completed'
+                        ? 'text-green-500'
+                        : action.status === 'in_progress'
+                        ? 'text-blue-500'
                         : 'text-yellow-500'
                     }`}>
                       {action.status === 'completed' ? (
                         <Check className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'}`} />
-                      ) : action.status === 'in-progress' ? (
+                      ) : action.status === 'in_progress' ? (
                         <Play className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'}`} />
                       ) : (
                         <Clock className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'}`} />
@@ -376,7 +421,8 @@ export function Overview() {
                   </div>
                 </motion.div>
               </Link>
-            ))}
+            ))
+            }
           </div>
         </motion.div>
       </div>

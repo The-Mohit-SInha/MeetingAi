@@ -1,144 +1,122 @@
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { 
-  Bell,
-  CheckCircle2,
-  AlertCircle,
-  Info,
-  Calendar as CalendarIcon,
-  Users,
-  MessageSquare,
-  Trash2,
-  Check,
-  X
-} from "lucide-react";
-import { useState } from "react";
 import { useTheme } from "../context/ThemeContext";
-
-const notifications = [
-  {
-    id: 1,
-    type: "action",
-    icon: CheckCircle2,
-    title: "Action Item Completed",
-    message: "Sarah Chen completed 'Update API documentation'",
-    time: "5 minutes ago",
-    isRead: false,
-    color: "green"
-  },
-  {
-    id: 2,
-    type: "meeting",
-    icon: CalendarIcon,
-    title: "Upcoming Meeting",
-    message: "Product Roadmap Q3 Planning starts in 30 minutes",
-    time: "25 minutes ago",
-    isRead: false,
-    color: "blue"
-  },
-  {
-    id: 3,
-    type: "mention",
-    icon: MessageSquare,
-    title: "You were mentioned",
-    message: "Mike Johnson mentioned you in 'Sprint Planning' notes",
-    time: "1 hour ago",
-    isRead: false,
-    color: "purple"
-  },
-  {
-    id: 4,
-    type: "alert",
-    icon: AlertCircle,
-    title: "Overdue Action Item",
-    message: "Review design mockups for v2.0 is overdue",
-    time: "2 hours ago",
-    isRead: true,
-    color: "red"
-  },
-  {
-    id: 5,
-    type: "info",
-    icon: Info,
-    title: "New Participant Added",
-    message: "Emma Wilson joined the Engineering team",
-    time: "3 hours ago",
-    isRead: true,
-    color: "gray"
-  },
-  {
-    id: 6,
-    type: "action",
-    icon: CheckCircle2,
-    title: "Action Item Assigned",
-    message: "You've been assigned 'Update deployment documentation'",
-    time: "5 hours ago",
-    isRead: true,
-    color: "green"
-  },
-  {
-    id: 7,
-    type: "meeting",
-    icon: CalendarIcon,
-    title: "Meeting Summary Available",
-    message: "Sprint Planning - Week 14 summary is ready",
-    time: "1 day ago",
-    isRead: true,
-    color: "blue"
-  },
-  {
-    id: 8,
-    type: "mention",
-    icon: Users,
-    title: "Team Update",
-    message: "3 new team members joined your workspace",
-    time: "2 days ago",
-    isRead: true,
-    color: "purple"
-  },
-];
-
-const colorMap = {
-  green: "from-green-500 to-emerald-500",
-  blue: "from-blue-500 to-cyan-500",
-  purple: "from-purple-500 to-pink-500",
-  red: "from-red-500 to-orange-500",
-  gray: "from-gray-500 to-slate-500"
-};
-
-const bgColorMap = {
-  green: "bg-green-100",
-  blue: "bg-blue-100",
-  purple: "bg-purple-100",
-  red: "bg-red-100",
-  gray: "bg-gray-100"
-};
+import { notificationsAPI } from "../services/apiWrapper";
+import { 
+  CheckCircle2, 
+  Calendar as CalendarIcon, 
+  MessageSquare, 
+  AlertCircle, 
+  Info,
+  Bell,
+  Loader2,
+  Check,
+  Trash2
+} from "lucide-react";
 
 export function Notifications() {
-  const [notificationsList, setNotificationsList] = useState(notifications);
-  const [filter, setFilter] = useState<"all" | "unread">("all");
-
-  const unreadCount = notificationsList.filter(n => !n.isRead).length;
-  const filteredNotifications = filter === "unread" 
-    ? notificationsList.filter(n => !n.isRead)
-    : notificationsList;
-
-  const markAsRead = (id: number) => {
-    setNotificationsList(prev => 
-      prev.map(n => n.id === id ? { ...n, isRead: true } : n)
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotificationsList(prev => 
-      prev.map(n => ({ ...n, isRead: true }))
-    );
-  };
-
-  const deleteNotification = (id: number) => {
-    setNotificationsList(prev => prev.filter(n => n.id !== id));
-  };
-
   const { theme, compactMode } = useTheme();
+  const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const data = await notificationsAPI.getAll();
+
+      const iconMap: any = {
+        action: CheckCircle2,
+        meeting: CalendarIcon,
+        mention: MessageSquare,
+        alert: AlertCircle,
+        info: Info,
+      };
+
+      const colorMap: any = {
+        action: 'green',
+        meeting: 'blue',
+        mention: 'purple',
+        alert: 'red',
+        info: 'gray',
+      };
+
+      setNotifications(data.map((n: any) => ({
+        ...n,
+        icon: iconMap[n.type] || Info,
+        color: colorMap[n.type] || 'gray',
+        time: new Date(n.created_at).toLocaleString(),
+        isRead: n.is_read,
+      })));
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      setNotifications([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const colorMap: any = {
+    green: "from-green-500 to-emerald-500",
+    blue: "from-blue-500 to-cyan-500",
+    purple: "from-purple-500 to-pink-500",
+    red: "from-red-500 to-orange-500",
+    gray: "from-gray-500 to-slate-500"
+  };
+
+  const bgColorMap: any = {
+    green: "bg-green-100",
+    blue: "bg-blue-100",
+    purple: "bg-purple-100",
+    red: "bg-red-100",
+    gray: "bg-gray-100"
+  };
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const filteredNotifications = filter === "unread"
+    ? notifications.filter(n => !n.isRead)
+    : notifications;
+
+  const markAsRead = async (id: string) => {
+    try {
+      await notificationsAPI.markAsRead(id);
+      setNotifications(notifications.map(n =>
+        n.id === id ? { ...n, isRead: true, is_read: true } : n
+      ));
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
+
+  const deleteNotification = async (id: string) => {
+    try {
+      await notificationsAPI.delete(id);
+      setNotifications(notifications.filter(n => n.id !== id));
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await notificationsAPI.markAllAsRead();
+      setNotifications(notifications.map(n => ({ ...n, isRead: true, is_read: true })));
+    } catch (error) {
+      console.error("Error marking all as read:", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="w-12 h-12 animate-spin text-purple-600" />
+      </div>
+    );
+  }
 
   return (
     <div className={compactMode ? "space-y-4" : "space-y-6"}>
@@ -189,7 +167,7 @@ export function Notifications() {
               : `${theme === 'dark' ? 'text-gray-300 hover:bg-gray-700/60' : 'text-gray-700 hover:bg-white/60'}`
           }`}
         >
-          All ({notificationsList.length})
+          All ({notifications.length})
         </button>
         <button
           onClick={() => setFilter("unread")}
@@ -213,9 +191,11 @@ export function Notifications() {
           >
             <Bell className={`${compactMode ? 'w-12 h-12' : 'w-16 h-16'} mx-auto ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'} mb-4`} />
             <h3 className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-2`}>No notifications</h3>
-            <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>You're all caught up! Check back later for updates.</p>
+            <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              {notifications.length === 0 ? "You're all caught up! Check back later for updates." : "No unread notifications"}
+            </p>
           </motion.div>
-        ) : (
+        ) :
           filteredNotifications.map((notification, index) => (
             <motion.div
               key={notification.id}
@@ -274,7 +254,7 @@ export function Notifications() {
               </div>
             </motion.div>
           ))
-        )}
+        }
       </div>
     </div>
   );
