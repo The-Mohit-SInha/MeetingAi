@@ -121,12 +121,11 @@ export function Analytics() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
           className="glass-card rounded-2xl p-6"
-          style={{ minHeight: '400px' }}
         >
           <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             Meeting & Action Trends
           </h3>
-          <div className="w-full" style={{ height: '300px' }}>
+          <div className="w-full h-[300px]" style={{ minHeight: '300px' }}>
             <MeetingsTrendChart data={meetingsByMonth} />
           </div>
         </motion.div>
@@ -137,12 +136,11 @@ export function Analytics() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.35 }}
           className="glass-card rounded-2xl p-6"
-          style={{ minHeight: '400px' }}
         >
           <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             Actions by Status
           </h3>
-          <div className="w-full" style={{ height: '300px' }}>
+          <div className="w-full h-[300px]" style={{ minHeight: '300px' }}>
             <ActionsPieChart data={actionsByStatus} />
           </div>
         </motion.div>
@@ -153,12 +151,11 @@ export function Analytics() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4 }}
           className="glass-card rounded-2xl p-6"
-          style={{ minHeight: '400px' }}
         >
           <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             Meeting Duration Distribution
           </h3>
-          <div className="w-full" style={{ height: '300px' }}>
+          <div className="w-full h-[300px]" style={{ minHeight: '300px' }}>
             <DurationBarChart data={meetingDuration} />
           </div>
         </motion.div>
@@ -169,12 +166,11 @@ export function Analytics() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.45 }}
           className="glass-card rounded-2xl p-6"
-          style={{ minHeight: '400px' }}
         >
           <h3 className={`text-lg font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             Weekly Completion Rate
           </h3>
-          <div className="w-full" style={{ height: '300px' }}>
+          <div className="w-full h-[300px]" style={{ minHeight: '300px' }}>
             <CompletionLineChart data={completionRate} />
           </div>
         </motion.div>

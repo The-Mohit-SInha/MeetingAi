@@ -2,6 +2,7 @@ import { RouterProvider } from 'react-router';
 import { router } from './routes';
 import { useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
 
 export default function App() {
   useEffect(() => {
@@ -23,8 +24,10 @@ export default function App() {
   }, []);
 
   return (
-    <ThemeProvider>
-      <RouterProvider router={router} />
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <RouterProvider router={router} />
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
