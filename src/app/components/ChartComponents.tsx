@@ -132,7 +132,7 @@ export function MeetingsTrendChart({ data }: ChartProps) {
   const chartId = `meetings-trend-${Date.now()}`;
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minHeight={250}>
       <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
         <XAxis dataKey="month" stroke={isDark ? '#9ca3af' : '#6b7280'} />
@@ -173,35 +173,33 @@ export function ActionsPieChart({ data }: ChartProps) {
   const chartId = `actions-pie-${Date.now()}`;
 
   return (
-    <div key={chartId} style={{ width: '100%', height: 300 }}>
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={({ name, percent }: any) => `${name}: ${(percent * 100).toFixed(0)}%`}
-            outerRadius={100}
-            fill="#8884d8"
-            dataKey="value"
-            style={{ fill: isDark ? '#e5e7eb' : '#1f2937' }}
-          >
-            {data.map((entry: any, index: number) => (
-              <Cell key={`cell-${chartId}-${entry.id}-${index}`} fill={entry.color} />
-            ))}
-          </Pie>
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : '#fff', 
-              border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-              borderRadius: '8px',
-              color: isDark ? '#e5e7eb' : '#1f2937'
-            }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-    </div>
+    <ResponsiveContainer width="100%" height="100%" minHeight={250}>
+      <PieChart margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          labelLine={false}
+          label={({ name, percent }: any) => `${name}: ${(percent * 100).toFixed(0)}%`}
+          outerRadius={100}
+          fill="#8884d8"
+          dataKey="value"
+          style={{ fill: isDark ? '#e5e7eb' : '#1f2937' }}
+        >
+          {data.map((entry: any, index: number) => (
+            <Cell key={`cell-${chartId}-${entry.id}-${index}`} fill={entry.color} />
+          ))}
+        </Pie>
+        <Tooltip 
+          contentStyle={{ 
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : '#fff', 
+            border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+            borderRadius: '8px',
+            color: isDark ? '#e5e7eb' : '#1f2937'
+          }}
+        />
+      </PieChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -213,24 +211,22 @@ export function DurationBarChart({ data }: ChartProps) {
   const chartId = `duration-bar-${Date.now()}`;
 
   return (
-    <div key={chartId} style={{ width: '100%', height: 300 }}>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
-          <XAxis dataKey="duration" stroke={isDark ? '#9ca3af' : '#6b7280'} />
-          <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : '#fff', 
-              border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-              borderRadius: '8px',
-              color: isDark ? '#e5e7eb' : '#1f2937'
-            }} 
-          />
-          <Bar dataKey="count" fill="#8b5cf6" radius={[8, 8, 0, 0]} name="Meetings" />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+    <ResponsiveContainer width="100%" height="100%" minHeight={250}>
+      <BarChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
+        <XAxis dataKey="duration" stroke={isDark ? '#9ca3af' : '#6b7280'} />
+        <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} />
+        <Tooltip 
+          contentStyle={{ 
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : '#fff', 
+            border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+            borderRadius: '8px',
+            color: isDark ? '#e5e7eb' : '#1f2937'
+          }} 
+        />
+        <Bar dataKey="count" fill="#8b5cf6" radius={[8, 8, 0, 0]} name="Meetings" />
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -242,31 +238,29 @@ export function CompletionLineChart({ data }: ChartProps) {
   const chartId = `completion-line-${Date.now()}`;
 
   return (
-    <div key={chartId} style={{ width: '100%', height: 300 }}>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
-          <XAxis dataKey="week" stroke={isDark ? '#9ca3af' : '#6b7280'} />
-          <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} domain={[0, 100]} />
-          <Tooltip 
-            contentStyle={{ 
-              backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : '#fff', 
-              border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-              borderRadius: '8px',
-              color: isDark ? '#e5e7eb' : '#1f2937'
-            }}
-            formatter={(value: any) => `${value}%`}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="rate" 
-            stroke="#10b981" 
-            strokeWidth={3}
-            name="Completion Rate"
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+    <ResponsiveContainer width="100%" height="100%" minHeight={250}>
+      <LineChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f0f0f0'} />
+        <XAxis dataKey="week" stroke={isDark ? '#9ca3af' : '#6b7280'} />
+        <YAxis stroke={isDark ? '#9ca3af' : '#6b7280'} domain={[0, 100]} />
+        <Tooltip 
+          contentStyle={{ 
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : '#fff', 
+            border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+            borderRadius: '8px',
+            color: isDark ? '#e5e7eb' : '#1f2937'
+          }}
+          formatter={(value: any) => `${value}%`}
+        />
+        <Line 
+          type="monotone" 
+          dataKey="rate" 
+          stroke="#10b981" 
+          strokeWidth={3}
+          name="Completion Rate"
+        />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
 
