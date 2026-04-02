@@ -114,13 +114,37 @@ const meetings = [
 ];
 
 export function Meetings() {
-  const { theme } = useTheme();
+  const { theme, compactMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("all");
+  const [showNewMeetingModal, setShowNewMeetingModal] = useState(false);
+  const [newMeeting, setNewMeeting] = useState({
+    title: "",
+    date: "",
+    time: "",
+    duration: "30",
+    participants: "",
+    tags: "",
+  });
+
+  const handleCreateMeeting = () => {
+    // In a real app, this would save to a database
+    console.log("Creating meeting:", newMeeting);
+    setShowNewMeetingModal(false);
+    // Reset form
+    setNewMeeting({
+      title: "",
+      date: "",
+      time: "",
+      duration: "30",
+      participants: "",
+      tags: "",
+    });
+  };
 
   return (
-    <div className="space-y-4">
+    <div className={compactMode ? "space-y-4" : "space-y-6"}>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -128,19 +152,20 @@ export function Meetings() {
         className="flex items-center justify-between flex-wrap gap-3"
       >
         <div>
-          <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+          <h1 className={`${compactMode ? 'text-2xl' : 'text-3xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             Meetings
           </h1>
-          <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+          <p className={`${compactMode ? 'text-sm' : 'text-base'} ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
             Manage and review your meeting history
           </p>
         </div>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2 text-sm"
+          onClick={() => setShowNewMeetingModal(true)}
+          className={`${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} bg-gradient-to-r from-blue-500 to-purple-600 text-white ${compactMode ? 'rounded-lg' : 'rounded-xl'} shadow-md hover:shadow-lg transition-all flex items-center gap-2`}
         >
-          <Plus className="w-4 h-4" />
+          <Plus className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
           New Meeting
         </motion.button>
       </motion.div>
@@ -347,6 +372,165 @@ export function Meetings() {
           </Link>
         ))}
       </motion.div>
+
+      {/* New Meeting Modal */}
+      <AnimatePresence>
+        {showNewMeetingModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowNewMeetingModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-2xl ${compactMode ? 'p-5' : 'p-6'} w-full max-w-2xl shadow-2xl`}
+            >
+              <h2 className={`${compactMode ? 'text-xl' : 'text-2xl'} font-bold ${compactMode ? 'mb-3' : 'mb-4'} ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                Create New Meeting
+              </h2>
+              
+              <div className={compactMode ? "space-y-3" : "space-y-4"}>
+                <div>
+                  <label className={`block ${compactMode ? 'text-xs' : 'text-sm'} font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                    Meeting Title *
+                  </label>
+                  <input
+                    type="text"
+                    value={newMeeting.title}
+                    onChange={(e) => setNewMeeting({ ...newMeeting, title: e.target.value })}
+                    placeholder="e.g., Product Roadmap Review"
+                    className={`w-full ${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 text-white border-gray-600 placeholder-gray-400' 
+                        : 'bg-white text-gray-900 border-gray-300 placeholder-gray-500'
+                    } border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block ${compactMode ? 'text-xs' : 'text-sm'} font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                      Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={newMeeting.date}
+                      onChange={(e) => setNewMeeting({ ...newMeeting, date: e.target.value })}
+                      className={`w-full ${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 text-white border-gray-600' 
+                          : 'bg-white text-gray-900 border-gray-300'
+                      } border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block ${compactMode ? 'text-xs' : 'text-sm'} font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                      Time *
+                    </label>
+                    <input
+                      type="time"
+                      value={newMeeting.time}
+                      onChange={(e) => setNewMeeting({ ...newMeeting, time: e.target.value })}
+                      className={`w-full ${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} ${
+                        theme === 'dark' 
+                          ? 'bg-gray-700 text-white border-gray-600' 
+                          : 'bg-white text-gray-900 border-gray-300'
+                      } border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`block ${compactMode ? 'text-xs' : 'text-sm'} font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                    Duration (minutes)
+                  </label>
+                  <select
+                    value={newMeeting.duration}
+                    onChange={(e) => setNewMeeting({ ...newMeeting, duration: e.target.value })}
+                    className={`w-full ${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 text-white border-gray-600' 
+                        : 'bg-white text-gray-900 border-gray-300'
+                    } border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  >
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="45">45 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="90">1.5 hours</option>
+                    <option value="120">2 hours</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block ${compactMode ? 'text-xs' : 'text-sm'} font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                    Participants (comma-separated emails)
+                  </label>
+                  <input
+                    type="text"
+                    value={newMeeting.participants}
+                    onChange={(e) => setNewMeeting({ ...newMeeting, participants: e.target.value })}
+                    placeholder="john@example.com, sarah@example.com"
+                    className={`w-full ${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 text-white border-gray-600 placeholder-gray-400' 
+                        : 'bg-white text-gray-900 border-gray-300 placeholder-gray-500'
+                    } border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block ${compactMode ? 'text-xs' : 'text-sm'} font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                    Tags (comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    value={newMeeting.tags}
+                    onChange={(e) => setNewMeeting({ ...newMeeting, tags: e.target.value })}
+                    placeholder="Product, Planning, Quarterly"
+                    className={`w-full ${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 text-white border-gray-600 placeholder-gray-400' 
+                        : 'bg-white text-gray-900 border-gray-300 placeholder-gray-500'
+                    } border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                  />
+                </div>
+              </div>
+
+              <div className={`flex items-center justify-end gap-3 ${compactMode ? 'mt-4' : 'mt-6'}`}>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  type="button"
+                  onClick={() => setShowNewMeetingModal(false)}
+                  className={`${compactMode ? 'px-4 py-1.5 text-sm' : 'px-5 py-2'} ${
+                    theme === 'dark' 
+                      ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  } rounded-lg font-semibold transition-colors`}
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  type="button"
+                  onClick={handleCreateMeeting}
+                  disabled={!newMeeting.title || !newMeeting.date || !newMeeting.time}
+                  className={`${compactMode ? 'px-4 py-1.5 text-sm' : 'px-5 py-2'} bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  Create Meeting
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
