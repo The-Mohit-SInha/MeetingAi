@@ -16,7 +16,6 @@ import { Settings } from "./components/Settings";
 import { Login } from "./components/Login";
 import { Signup } from "./components/Signup";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { DatabaseConnectionStatus } from "./components/DatabaseConnectionStatus";
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export default function App() {
@@ -74,7 +73,6 @@ export default function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
-        <DatabaseConnectionStatus />
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
