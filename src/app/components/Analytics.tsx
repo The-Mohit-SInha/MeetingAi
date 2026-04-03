@@ -1,4 +1,5 @@
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 import { useState, useEffect } from "react";
 import { analyticsAPI } from "../services/apiWrapper";
 import { motion } from "motion/react";
@@ -7,6 +8,7 @@ import { MeetingsTrendChart, ActionsPieChart, DurationBarChart } from "./ChartCo
 
 export function Analytics() {
   const { theme, compactMode } = useTheme();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalMeetings: 0,
@@ -20,14 +22,18 @@ export function Analytics() {
   const [participantEngagement, setParticipantEngagement] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    if (user) {
+      fetchAnalytics();
+    }
+  }, [user]);
 
   const fetchAnalytics = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
 
-      const monthTrends = await analyticsAPI.getMeetingTrends();
+      const monthTrends = await analyticsAPI.getMeetingTrends(user.id);
       setMeetingsByMonth(monthTrends.map((m: any, i: number) => ({
         month: new Date(m.month).toLocaleDateString('en-US', { month: 'short' }),
         meetings: m.total_meetings,
@@ -35,14 +41,14 @@ export function Analytics() {
         id: `month-${i}`,
       })));
 
-      const statusBreakdown = await analyticsAPI.getActionsByStatus();
+      const statusBreakdown = await analyticsAPI.getActionsByStatus(user.id);
       setActionsByStatus([
         { name: "Completed", value: statusBreakdown.completed || 0, color: "#10b981", id: "completed" },
         { name: "In Progress", value: statusBreakdown.in_progress || 0, color: "#3b82f6", id: "in-progress" },
         { name: "To Do", value: statusBreakdown.todo || 0, color: "#f59e0b", id: "todo" },
       ]);
 
-      const durationStats = await analyticsAPI.getMeetingDuration();
+      const durationStats = await analyticsAPI.getMeetingDuration(user.id);
       setMeetingDuration([
         { duration: "0-30 min", count: durationStats['0-30'] || 0, id: "d1" },
         { duration: "30-60 min", count: durationStats['30-60'] || 0, id: "d2" },
@@ -50,7 +56,7 @@ export function Analytics() {
         { duration: "90+ min", count: durationStats['90+'] || 0, id: "d4" },
       ]);
 
-      const engagement = await analyticsAPI.getParticipantEngagement();
+      const engagement = await analyticsAPI.getParticipantEngagement(user.id);
       setParticipantEngagement(engagement.slice(0, 5).map((p: any, i: number) => ({
         name: p.participant_name,
         meetings: p.meeting_count,
