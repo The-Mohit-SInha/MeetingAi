@@ -1,5 +1,5 @@
 // Local storage-based API for when backend is not configured
-import { getFromStorage, setInStorage, STORAGE_KEYS, generateId, initializeStorage } from '../../lib/localStorage';
+import { getFromStorage, setInStorage, getUserStorageKey, generateId, initializeStorage } from '../../lib/localStorage';
 
 // Types matching the database schema
 interface Meeting {
@@ -88,22 +88,20 @@ export const initializeUserStorage = (userId: string) => {
 
 export const localMeetingsAPI = {
   getAll(userId: string): Meeting[] {
-    const meetings = getFromStorage<Meeting[]>(STORAGE_KEYS.MEETINGS, []);
-    return meetings
-      .filter(m => m.user_id === userId)
-      .sort((a, b) => {
-        const dateCompare = b.date.localeCompare(a.date);
-        return dateCompare !== 0 ? dateCompare : b.time.localeCompare(a.time);
-      });
+    const meetings = getFromStorage<Meeting[]>(getUserStorageKey(userId, 'meetings'), []);
+    return meetings.sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      return dateCompare !== 0 ? dateCompare : b.time.localeCompare(a.time);
+    });
   },
 
   getById(id: string, userId: string): Meeting | null {
-    const meetings = getFromStorage<Meeting[]>(STORAGE_KEYS.MEETINGS, []);
-    const meeting = meetings.find(m => m.id === id && m.user_id === userId);
+    const meetings = getFromStorage<Meeting[]>(getUserStorageKey(userId, 'meetings'), []);
+    const meeting = meetings.find(m => m.id === id);
 
     if (meeting) {
       // Get participants
-      const participants = getFromStorage<MeetingParticipant[]>(STORAGE_KEYS.PARTICIPANTS, [])
+      const participants = getFromStorage<MeetingParticipant[]>(getUserStorageKey(userId, 'participants'), [])
         .filter(p => p.meeting_id === id);
       return { ...meeting, participants };
     }
@@ -111,7 +109,7 @@ export const localMeetingsAPI = {
   },
 
   create(meeting: Omit<Meeting, 'id' | 'created_at' | 'updated_at'>, participants: string[]): Meeting {
-    const meetings = getFromStorage<Meeting[]>(STORAGE_KEYS.MEETINGS, []);
+    const meetings = getFromStorage<Meeting[]>(getUserStorageKey(meeting.user_id, 'meetings'), []);
     const now = new Date().toISOString();
 
     const newMeeting: Meeting = {
@@ -122,11 +120,11 @@ export const localMeetingsAPI = {
     };
 
     meetings.push(newMeeting);
-    setInStorage(STORAGE_KEYS.MEETINGS, meetings);
+    setInStorage(getUserStorageKey(meeting.user_id, 'meetings'), meetings);
 
     // Add participants
     if (participants.length > 0) {
-      const participantRecords = getFromStorage<MeetingParticipant[]>(STORAGE_KEYS.PARTICIPANTS, []);
+      const participantRecords = getFromStorage<MeetingParticipant[]>(getUserStorageKey(meeting.user_id, 'participants'), []);
       participants.forEach(name => {
         participantRecords.push({
           id: generateId(),
@@ -137,15 +135,15 @@ export const localMeetingsAPI = {
           created_at: now,
         });
       });
-      setInStorage(STORAGE_KEYS.PARTICIPANTS, participantRecords);
+      setInStorage(getUserStorageKey(meeting.user_id, 'participants'), participantRecords);
     }
 
     return newMeeting;
   },
 
   update(id: string, updates: Partial<Meeting>, userId: string): Meeting | null {
-    const meetings = getFromStorage<Meeting[]>(STORAGE_KEYS.MEETINGS, []);
-    const index = meetings.findIndex(m => m.id === id && m.user_id === userId);
+    const meetings = getFromStorage<Meeting[]>(getUserStorageKey(userId, 'meetings'), []);
+    const index = meetings.findIndex(m => m.id === id);
 
     if (index === -1) return null;
 
@@ -155,25 +153,25 @@ export const localMeetingsAPI = {
       updated_at: new Date().toISOString(),
     };
 
-    setInStorage(STORAGE_KEYS.MEETINGS, meetings);
+    setInStorage(getUserStorageKey(userId, 'meetings'), meetings);
     return meetings[index];
   },
 
   delete(id: string, userId: string): boolean {
-    const meetings = getFromStorage<Meeting[]>(STORAGE_KEYS.MEETINGS, []);
-    const filtered = meetings.filter(m => !(m.id === id && m.user_id === userId));
+    const meetings = getFromStorage<Meeting[]>(getUserStorageKey(userId, 'meetings'), []);
+    const filtered = meetings.filter(m => m.id !== id);
 
     if (filtered.length === meetings.length) return false;
 
-    setInStorage(STORAGE_KEYS.MEETINGS, filtered);
+    setInStorage(getUserStorageKey(userId, 'meetings'), filtered);
 
     // Delete associated participants
-    const participants = getFromStorage<MeetingParticipant[]>(STORAGE_KEYS.PARTICIPANTS, []);
-    setInStorage(STORAGE_KEYS.PARTICIPANTS, participants.filter(p => p.meeting_id !== id));
+    const participants = getFromStorage<MeetingParticipant[]>(getUserStorageKey(userId, 'participants'), []);
+    setInStorage(getUserStorageKey(userId, 'participants'), participants.filter(p => p.meeting_id !== id));
 
     // Delete associated action items
-    const actionItems = getFromStorage<ActionItem[]>(STORAGE_KEYS.ACTION_ITEMS, []);
-    setInStorage(STORAGE_KEYS.ACTION_ITEMS, actionItems.filter(a => a.meeting_id !== id));
+    const actionItems = getFromStorage<ActionItem[]>(getUserStorageKey(userId, 'action_items'), []);
+    setInStorage(getUserStorageKey(userId, 'action_items'), actionItems.filter(a => a.meeting_id !== id));
 
     return true;
   },
@@ -194,19 +192,17 @@ export const localMeetingsAPI = {
 
 export const localActionItemsAPI = {
   getAll(userId: string): ActionItem[] {
-    const items = getFromStorage<ActionItem[]>(STORAGE_KEYS.ACTION_ITEMS, []);
-    return items
-      .filter(item => item.user_id === userId)
-      .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+    const items = getFromStorage<ActionItem[]>(getUserStorageKey(userId, 'action_items'), []);
+    return items.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
   },
 
   getById(id: string, userId: string): ActionItem | null {
-    const items = getFromStorage<ActionItem[]>(STORAGE_KEYS.ACTION_ITEMS, []);
+    const items = getFromStorage<ActionItem[]>(getUserStorageKey(userId, 'action_items'), []);
     return items.find(item => item.id === id && item.user_id === userId) || null;
   },
 
   create(actionItem: Omit<ActionItem, 'id' | 'created_at' | 'updated_at'>): ActionItem {
-    const items = getFromStorage<ActionItem[]>(STORAGE_KEYS.ACTION_ITEMS, []);
+    const items = getFromStorage<ActionItem[]>(getUserStorageKey(actionItem.user_id, 'action_items'), []);
     const now = new Date().toISOString();
 
     const newItem: ActionItem = {
@@ -217,12 +213,12 @@ export const localActionItemsAPI = {
     };
 
     items.push(newItem);
-    setInStorage(STORAGE_KEYS.ACTION_ITEMS, items);
+    setInStorage(getUserStorageKey(actionItem.user_id, 'action_items'), items);
     return newItem;
   },
 
   update(id: string, updates: Partial<ActionItem>, userId: string): ActionItem | null {
-    const items = getFromStorage<ActionItem[]>(STORAGE_KEYS.ACTION_ITEMS, []);
+    const items = getFromStorage<ActionItem[]>(getUserStorageKey(userId, 'action_items'), []);
     const index = items.findIndex(item => item.id === id && item.user_id === userId);
 
     if (index === -1) return null;
@@ -233,17 +229,17 @@ export const localActionItemsAPI = {
       updated_at: new Date().toISOString(),
     };
 
-    setInStorage(STORAGE_KEYS.ACTION_ITEMS, items);
+    setInStorage(getUserStorageKey(userId, 'action_items'), items);
     return items[index];
   },
 
   delete(id: string, userId: string): boolean {
-    const items = getFromStorage<ActionItem[]>(STORAGE_KEYS.ACTION_ITEMS, []);
+    const items = getFromStorage<ActionItem[]>(getUserStorageKey(userId, 'action_items'), []);
     const filtered = items.filter(item => !(item.id === id && item.user_id === userId));
 
     if (filtered.length === items.length) return false;
 
-    setInStorage(STORAGE_KEYS.ACTION_ITEMS, filtered);
+    setInStorage(getUserStorageKey(userId, 'action_items'), filtered);
     return true;
   },
 
@@ -323,7 +319,7 @@ export const localNotificationsAPI = {
 
 export const localUserAPI = {
   get(userId: string): UserProfile {
-    const profile = getFromStorage<UserProfile>(STORAGE_KEYS.PROFILE, {
+    const profile = getFromStorage<UserProfile>(getUserStorageKey(userId, 'profile'), {
       id: userId,
       email: 'user@example.com',
       name: 'User',
@@ -338,7 +334,7 @@ export const localUserAPI = {
     // Ensure the profile has the correct user ID
     if (profile.id !== userId) {
       profile.id = userId;
-      setInStorage(STORAGE_KEYS.PROFILE, profile);
+      setInStorage(getUserStorageKey(userId, 'profile'), profile);
     }
 
     return profile;
@@ -347,7 +343,7 @@ export const localUserAPI = {
   update(userId: string, updates: Partial<UserProfile>): UserProfile {
     const profile = this.get(userId);
     const updated = { ...profile, ...updates, id: userId };
-    setInStorage(STORAGE_KEYS.PROFILE, updated);
+    setInStorage(getUserStorageKey(userId, 'profile'), updated);
     return updated;
   },
 
@@ -359,7 +355,7 @@ export const localUserAPI = {
         const dataUrl = reader.result as string;
         const profile = this.get(userId);
         profile.avatar = dataUrl;
-        setInStorage(STORAGE_KEYS.PROFILE, profile);
+        setInStorage(getUserStorageKey(userId, 'profile'), profile);
         resolve(dataUrl);
       };
       reader.onerror = reject;
@@ -372,7 +368,7 @@ export const localUserAPI = {
 
 export const localSettingsAPI = {
   get(userId: string): UserSettings {
-    const settings = getFromStorage<UserSettings>(STORAGE_KEYS.SETTINGS, {
+    const settings = getFromStorage<UserSettings>(getUserStorageKey(userId, 'settings'), {
       user_id: userId,
       theme: 'light',
       compact_mode: false,
@@ -388,7 +384,7 @@ export const localSettingsAPI = {
     // Ensure settings have the correct user ID
     if (settings.user_id !== userId) {
       settings.user_id = userId;
-      setInStorage(STORAGE_KEYS.SETTINGS, settings);
+      setInStorage(getUserStorageKey(userId, 'settings'), settings);
     }
 
     return settings;
@@ -397,7 +393,7 @@ export const localSettingsAPI = {
   update(userId: string, updates: Partial<UserSettings>): UserSettings {
     const settings = this.get(userId);
     const updated = { ...settings, ...updates, user_id: userId };
-    setInStorage(STORAGE_KEYS.SETTINGS, updated);
+    setInStorage(getUserStorageKey(userId, 'settings'), updated);
     return updated;
   },
 };

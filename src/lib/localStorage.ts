@@ -2,7 +2,12 @@
 
 const STORAGE_PREFIX = 'meetingmanager_';
 
-// Storage keys
+// Storage keys - now user-specific
+export const getUserStorageKey = (userId: string, type: string) => {
+  return `${STORAGE_PREFIX}${userId}_${type}`;
+};
+
+// Legacy global storage keys (for migration)
 export const STORAGE_KEYS = {
   MEETINGS: `${STORAGE_PREFIX}meetings`,
   ACTION_ITEMS: `${STORAGE_PREFIX}action_items`,
@@ -57,29 +62,57 @@ export const generateId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
-// Initialize storage with default values if empty
+// Get user email from auth storage
+const getUserEmail = (userId: string): string => {
+  try {
+    const users = JSON.parse(localStorage.getItem('meetingmanager_users') || '[]');
+    const user = users.find((u: any) => u.id === userId);
+    return user?.email || 'user@example.com';
+  } catch {
+    return 'user@example.com';
+  }
+};
+
+// Get user name from auth storage
+const getUserName = (userId: string): string => {
+  try {
+    const users = JSON.parse(localStorage.getItem('meetingmanager_users') || '[]');
+    const user = users.find((u: any) => u.id === userId);
+    return user?.name || 'User';
+  } catch {
+    return 'User';
+  }
+};
+
+// Initialize storage with default values if empty - USER SPECIFIC
 export const initializeStorage = (userId: string): void => {
+  const userMeetingsKey = getUserStorageKey(userId, 'meetings');
+  const userActionsKey = getUserStorageKey(userId, 'action_items');
+  const userNotificationsKey = getUserStorageKey(userId, 'notifications');
+  const userProfileKey = getUserStorageKey(userId, 'profile');
+  const userSettingsKey = getUserStorageKey(userId, 'settings');
+
   // Initialize meetings
-  if (!localStorage.getItem(STORAGE_KEYS.MEETINGS)) {
-    setInStorage(STORAGE_KEYS.MEETINGS, []);
+  if (!localStorage.getItem(userMeetingsKey)) {
+    setInStorage(userMeetingsKey, []);
   }
 
   // Initialize action items
-  if (!localStorage.getItem(STORAGE_KEYS.ACTION_ITEMS)) {
-    setInStorage(STORAGE_KEYS.ACTION_ITEMS, []);
+  if (!localStorage.getItem(userActionsKey)) {
+    setInStorage(userActionsKey, []);
   }
 
   // Initialize notifications
-  if (!localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS)) {
-    setInStorage(STORAGE_KEYS.NOTIFICATIONS, []);
+  if (!localStorage.getItem(userNotificationsKey)) {
+    setInStorage(userNotificationsKey, []);
   }
 
-  // Initialize profile
-  if (!localStorage.getItem(STORAGE_KEYS.PROFILE)) {
-    setInStorage(STORAGE_KEYS.PROFILE, {
+  // Initialize profile with user's actual data
+  if (!localStorage.getItem(userProfileKey)) {
+    setInStorage(userProfileKey, {
       id: userId,
-      name: 'User',
-      email: 'user@example.com',
+      name: getUserName(userId),
+      email: getUserEmail(userId),
       role: 'Team Member',
       department: 'General',
       location: 'Remote',
@@ -90,8 +123,9 @@ export const initializeStorage = (userId: string): void => {
   }
 
   // Initialize settings
-  if (!localStorage.getItem(STORAGE_KEYS.SETTINGS)) {
-    setInStorage(STORAGE_KEYS.SETTINGS, {
+  if (!localStorage.getItem(userSettingsKey)) {
+    setInStorage(userSettingsKey, {
+      user_id: userId,
       theme: 'light',
       compact_mode: false,
       email_notifications: true,
@@ -102,10 +136,5 @@ export const initializeStorage = (userId: string): void => {
       google_calendar_connected: false,
       outlook_calendar_connected: false,
     });
-  }
-
-  // Initialize participants
-  if (!localStorage.getItem(STORAGE_KEYS.PARTICIPANTS)) {
-    setInStorage(STORAGE_KEYS.PARTICIPANTS, []);
   }
 };
