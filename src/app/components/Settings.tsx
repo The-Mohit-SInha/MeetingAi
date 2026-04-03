@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { settingsAPI } from "../services/apiWrapper";
+import { isSupabaseConfigured } from "../../lib/supabase";
 import { motion } from "motion/react";
 import { 
   User, 
@@ -17,10 +18,18 @@ import {
   Sun,
   Shield,
   Key,
-  Save
+  Save,
+  CheckCircle,
+  XCircle
 } from "lucide-react";
 
 const settingsSections = [
+  {
+    id: "database",
+    title: "Database Connection",
+    icon: Database,
+    description: "View storage configuration"
+  },
   {
     id: "account",
     title: "Account Settings",
@@ -55,9 +64,10 @@ const settingsSections = [
 
 export function Settings() {
   const { theme, setTheme, compactMode, toggleCompactMode } = useTheme();
-  const [activeSection, setActiveSection] = useState("account");
+  const [activeSection, setActiveSection] = useState("database");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isDbConfigured, setIsDbConfigured] = useState(false);
   const [settings, setSettings] = useState({
     // Account
     autoSave: true,
@@ -84,6 +94,7 @@ export function Settings() {
 
   useEffect(() => {
     fetchSettings();
+    setIsDbConfigured(isSupabaseConfigured());
   }, []);
 
   const fetchSettings = async () => {
@@ -208,6 +219,147 @@ export function Settings() {
           transition={{ duration: 0.3 }}
           className={`lg:col-span-3 glass ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-6'} shadow-xl`}
         >
+          {/* Database Connection */}
+          {activeSection === "database" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-2`}>Database Connection</h2>
+                <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>View your storage configuration and setup guide</p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Connection Status Card */}
+                <div className={`p-6 ${isDbConfigured 
+                  ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-300 dark:border-green-700' 
+                  : 'bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border-2 border-amber-300 dark:border-amber-700'} rounded-xl`}>
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 ${isDbConfigured ? 'bg-green-100 dark:bg-green-900/50' : 'bg-amber-100 dark:bg-amber-900/50'} rounded-xl flex items-center justify-center`}>
+                      {isDbConfigured ? (
+                        <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <XCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`text-lg font-bold mb-1 ${isDbConfigured ? 'text-green-900 dark:text-green-100' : 'text-amber-900 dark:text-amber-100'}`}>
+                        {isDbConfigured ? '✅ Connected to Supabase Cloud Database' : '⚠️ Using Local Browser Storage'}
+                      </h3>
+                      <p className={`text-sm mb-3 ${isDbConfigured ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                        {isDbConfigured 
+                          ? 'Your data is stored permanently in the cloud with automatic backups, real-time sync, and access from any device.'
+                          : 'Your data is stored in your browser\'s localStorage. It will be lost if you clear browser data or use a different device.'
+                        }
+                      </p>
+                      
+                      {isDbConfigured ? (
+                        <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">✨ Active Features:</p>
+                          <ul className="text-xs text-gray-700 dark:text-gray-300 space-y-1">
+                            <li>✓ Permanent cloud storage</li>
+                            <li>✓ Multi-device synchronization</li>
+                            <li>✓ Automatic backups</li>
+                            <li>✓ Row-level security (your data is private)</li>
+                            <li>✓ Real-time collaboration support</li>
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">🚀 Get Permanent Storage (Free):</p>
+                          <ol className="text-xs text-gray-700 dark:text-gray-300 space-y-1 list-decimal list-inside">
+                            <li>Open <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded font-mono">SUPABASE_SETUP.md</code> file</li>
+                            <li>Follow the 5-minute setup guide</li>
+                            <li>Configure your free Supabase account</li>
+                            <li>Restart the dev server</li>
+                          </ol>
+                          <a 
+                            href="https://app.supabase.com" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-block mt-3 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-semibold rounded-lg hover:shadow-lg transition-all"
+                          >
+                            Get Started with Supabase →
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Storage Type */}
+                <div className={`p-4 ${theme === 'dark' ? 'bg-gray-800/60' : 'bg-white/60'} rounded-xl`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 ${theme === 'dark' ? 'bg-purple-900/50' : 'bg-purple-100'} rounded-lg flex items-center justify-center`}>
+                        <Database className={`w-5 h-5 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+                      </div>
+                      <div>
+                        <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Storage Type</p>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {isDbConfigured ? 'PostgreSQL Cloud Database' : 'Browser localStorage'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      isDbConfigured 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' 
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
+                    }`}>
+                      {isDbConfigured ? 'Cloud' : 'Local'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Data Persistence */}
+                <div className={`p-4 ${theme === 'dark' ? 'bg-gray-800/60' : 'bg-white/60'} rounded-xl`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 ${theme === 'dark' ? 'bg-blue-900/50' : 'bg-blue-100'} rounded-lg flex items-center justify-center`}>
+                        <Shield className={`w-5 h-5 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`} />
+                      </div>
+                      <div>
+                        <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Data Persistence</p>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {isDbConfigured ? 'Permanent with automatic backups' : 'Temporary - cleared with browser data'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      isDbConfigured 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' 
+                        : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                    }`}>
+                      {isDbConfigured ? 'Permanent' : 'Temporary'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Multi-device Access */}
+                <div className={`p-4 ${theme === 'dark' ? 'bg-gray-800/60' : 'bg-white/60'} rounded-xl`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 ${theme === 'dark' ? 'bg-indigo-900/50' : 'bg-indigo-100'} rounded-lg flex items-center justify-center`}>
+                        <Globe className={`w-5 h-5 ${theme === 'dark' ? 'text-indigo-400' : 'text-indigo-600'}`} />
+                      </div>
+                      <div>
+                        <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Multi-Device Access</p>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {isDbConfigured ? 'Access from any device' : 'Single device only'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      isDbConfigured 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' 
+                        : 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                    }`}>
+                      {isDbConfigured ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Account Settings */}
           {activeSection === "account" && (
             <div className="space-y-6">

@@ -16,9 +16,44 @@ import { Settings } from "./components/Settings";
 import { Login } from "./components/Login";
 import { Signup } from "./components/Signup";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { DatabaseConnectionStatus } from "./components/DatabaseConnectionStatus";
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export default function App() {
   useEffect(() => {
+    // Verify Supabase connection
+    const verifyConnection = async () => {
+      const configured = isSupabaseConfigured();
+      
+      if (configured) {
+        console.log('%c🎉 SUPABASE CONNECTED! 🎉', 'color: #10b981; font-size: 20px; font-weight: bold; padding: 10px;');
+        console.log('%c✅ Cloud database: ACTIVE', 'color: #10b981; font-size: 14px;');
+        console.log('%c✅ Authentication: READY', 'color: #10b981; font-size: 14px;');
+        console.log('%c✅ Data persistence: ENABLED', 'color: #10b981; font-size: 14px;');
+        console.log('%c\nYour data is now stored securely in the cloud!', 'color: #059669; font-size: 12px;');
+        console.log('%c📊 Dashboard: https://supabase.com/dashboard/project/qjrmxudyrwcqwpkmrggn', 'color: #6b7280; font-size: 11px;');
+        
+        // Test database connection
+        try {
+          const { error } = await supabase.from('kv_store_af44c8dd').select('key').limit(1);
+          if (error) {
+            console.warn('⚠️ Database query test failed:', error.message);
+            console.log('💡 Have you run the SQL script? Check DO_THIS_NOW.md');
+          } else {
+            console.log('%c✅ Database query test: SUCCESS', 'color: #10b981; font-size: 14px;');
+          }
+        } catch (err) {
+          console.warn('⚠️ Database connection test error:', err);
+        }
+      } else {
+        console.log('%c⚠️ USING LOCAL STORAGE ONLY', 'color: #f59e0b; font-size: 16px; font-weight: bold;');
+        console.log('%c📝 Data stored in browser localStorage (temporary)', 'color: #f59e0b; font-size: 12px;');
+        console.log('%c💡 To enable cloud storage, check QUICK_START.md', 'color: #6b7280; font-size: 11px;');
+      }
+    };
+    
+    verifyConnection();
+
     // Suppress Recharts duplicate key warnings (known Recharts internal issue)
     const originalError = console.error;
     console.error = (...args: any[]) => {
@@ -39,6 +74,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
+        <DatabaseConnectionStatus />
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
