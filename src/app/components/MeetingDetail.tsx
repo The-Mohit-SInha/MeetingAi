@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   ArrowLeft, 
@@ -11,192 +11,63 @@ import {
   CheckCircle2,
   Circle,
   User,
-  Sparkles
+  Sparkles,
+  Loader2
 } from "lucide-react";
-import { useState } from "react";
-
-const meetingData = {
-  1: {
-    title: "Product Roadmap Q2 Review",
-    date: "2026-03-31",
-    time: "2:00 PM - 2:45 PM",
-    duration: "45 min",
-    status: "completed",
-    participants: [
-      { name: "John Doe", role: "Product Manager", avatar: "JD", color: "bg-blue-500" },
-      { name: "Sarah Chen", role: "Engineering Lead", avatar: "SC", color: "bg-green-500" },
-      { name: "Mike Johnson", role: "Designer", avatar: "MJ", color: "bg-purple-500" },
-      { name: "Emma Wilson", role: "Marketing", avatar: "EW", color: "bg-orange-500" },
-    ],
-    summary: "Discussed the product roadmap for Q2 2026, including feature prioritization, resource allocation, and timeline adjustments. Team aligned on major deliverables and identified potential blockers.",
-    keyPoints: [
-      "Q2 focus on mobile optimization and performance improvements",
-      "New collaboration features to be released in April",
-      "Analytics dashboard redesign scheduled for May",
-      "Budget approved for two additional engineering hires",
-    ],
-    transcript: `[00:00] John Doe: Good afternoon everyone, let's get started with our Q2 roadmap review.
-
-[00:32] Sarah Chen: Thanks for organizing this. I've prepared an overview of our technical capabilities for the upcoming quarter.
-
-[01:15] John Doe: Perfect. Let's start with the mobile optimization initiative. Sarah, can you walk us through the technical approach?
-
-[02:00] Sarah Chen: Absolutely. We're planning to implement lazy loading, optimize images, and reduce bundle sizes. We estimate this will improve load times by 40%.
-
-[03:20] Mike Johnson: From a design perspective, we've created responsive components that adapt seamlessly across devices.
-
-[04:15] Emma Wilson: That's great. Marketing will need at least two weeks notice before launch to prepare our campaigns.
-
-[05:30] John Doe: Noted. Let's move to the collaboration features. Mike, can you present the mockups?
-
-[06:45] Mike Johnson: Sure. We've designed real-time commenting, version history, and @mentions functionality.
-
-[08:00] Sarah Chen: The technical implementation is straightforward. We can leverage WebSockets for real-time updates.
-
-[09:15] Emma Wilson: This aligns perfectly with our Q2 marketing narrative around team productivity.
-
-[10:30] John Doe: Excellent. Now for the analytics dashboard - this is a bigger lift.`,
-    actionItems: [
-      {
-        id: 1,
-        task: "Finalize mobile optimization technical spec",
-        assignee: "Sarah Chen",
-        dueDate: "2026-04-05",
-        priority: "high",
-        status: "completed",
-      },
-      {
-        id: 2,
-        task: "Create marketing campaign for collaboration features",
-        assignee: "Emma Wilson",
-        dueDate: "2026-04-10",
-        priority: "high",
-        status: "completed",
-      },
-      {
-        id: 3,
-        task: "Complete analytics dashboard wireframes",
-        assignee: "Mike Johnson",
-        dueDate: "2026-04-08",
-        priority: "medium",
-        status: "completed",
-      },
-      {
-        id: 4,
-        task: "Schedule interviews for engineering positions",
-        assignee: "John Doe",
-        dueDate: "2026-04-15",
-        priority: "medium",
-        status: "in-progress",
-      },
-      {
-        id: 5,
-        task: "Prepare Q2 budget allocation document",
-        assignee: "John Doe",
-        dueDate: "2026-04-12",
-        priority: "low",
-        status: "pending",
-      },
-    ],
-  },
-  2: {
-    title: "Sprint Planning - Week 14",
-    date: "2026-03-30",
-    time: "10:00 AM - 11:00 AM",
-    duration: "60 min",
-    status: "completed",
-    participants: [
-      { name: "Emma Wilson", role: "Scrum Master", avatar: "EW", color: "bg-orange-500" },
-      { name: "David Lee", role: "Developer", avatar: "DL", color: "bg-pink-500" },
-      { name: "Lisa Wang", role: "QA Engineer", avatar: "LW", color: "bg-indigo-500" },
-    ],
-    summary: "Sprint planning session for Week 14 development cycle. Reviewed backlog items, estimated story points, and assigned tasks to team members.",
-    keyPoints: [
-      "8 user stories selected for the sprint",
-      "Total of 34 story points committed",
-      "Focus on API improvements and bug fixes",
-      "Sprint demo scheduled for Friday",
-    ],
-    transcript: "Sprint planning transcript...",
-    actionItems: [
-      {
-        id: 1,
-        task: "Update API documentation",
-        assignee: "David Lee",
-        dueDate: "2026-04-02",
-        priority: "high",
-        status: "in-progress",
-      },
-    ],
-  },
-  3: {
-    title: "Client Discovery Call - Acme Corp",
-    date: "2026-03-29",
-    time: "3:30 PM - 4:00 PM",
-    duration: "30 min",
-    status: "completed",
-    participants: [
-      { name: "Tom Harris", role: "Sales Lead", avatar: "TH", color: "bg-red-500" },
-      { name: "Rachel Green", role: "Account Manager", avatar: "RG", color: "bg-teal-500" },
-    ],
-    summary: "Initial discovery call with Acme Corp to understand their requirements and pain points.",
-    keyPoints: [
-      "Company has 500+ employees",
-      "Looking for meeting automation solution",
-      "Budget approved for Q2 implementation",
-      "Timeline: 3-month pilot program",
-    ],
-    transcript: "Discovery call transcript...",
-    actionItems: [
-      {
-        id: 1,
-        task: "Schedule follow-up with Acme Corp",
-        assignee: "Tom Harris",
-        dueDate: "2026-04-03",
-        priority: "medium",
-        status: "pending",
-      },
-    ],
-  },
-  4: {
-    title: "Design System Review",
-    date: "2026-03-28",
-    time: "11:00 AM - 12:30 PM",
-    duration: "90 min",
-    status: "completed",
-    participants: [
-      { name: "Alex Turner", role: "Design Lead", avatar: "AT", color: "bg-yellow-500" },
-      { name: "Maya Patel", role: "UI Designer", avatar: "MP", color: "bg-cyan-500" },
-      { name: "Chris Anderson", role: "Frontend Dev", avatar: "CA", color: "bg-lime-500" },
-    ],
-    summary: "Comprehensive review of the design system components and guidelines.",
-    keyPoints: [
-      "Updated color palette for better accessibility",
-      "New component library structure",
-      "Documentation improvements",
-      "Migration plan for existing projects",
-    ],
-    transcript: "Design review transcript...",
-    actionItems: [
-      {
-        id: 1,
-        task: "Review design mockups for v2.0",
-        assignee: "Maya Patel",
-        dueDate: "2026-04-02",
-        priority: "high",
-        status: "in-progress",
-      },
-    ],
-  },
-};
+import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import { meetingsAPI, actionItemsAPI } from "../services/apiWrapper";
 
 export function MeetingDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"summary" | "transcript" | "actions">("summary");
-  
-  const meeting = meetingData[id as keyof typeof meetingData];
+  const [meeting, setMeeting] = useState<any>(null);
+  const [actionItems, setActionItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!meeting) {
+  useEffect(() => {
+    const loadMeetingData = async () => {
+      if (!user || !id) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const meetingData = await meetingsAPI.getById(id, user.id);
+        setMeeting(meetingData);
+
+        const actions = await actionItemsAPI.getByMeeting(id, user.id);
+        setActionItems(actions);
+      } catch (err: any) {
+        console.error('Error loading meeting:', err);
+        setError(err.message || 'Failed to load meeting');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadMeetingData();
+  }, [id, user]);
+
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center justify-center min-h-[400px]"
+      >
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-purple-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading meeting details...</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (error || !meeting) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -204,14 +75,48 @@ export function MeetingDetail() {
         className="space-y-6"
       >
         <div className="glass rounded-2xl p-12 text-center shadow-xl">
-          <p className="text-gray-600 text-lg mb-4">Meeting not found</p>
-          <Link to="/meetings" className="text-blue-600 hover:text-blue-700 font-semibold">
+          <p className="text-gray-600 text-lg mb-4">
+            {error || "Meeting not found"}
+          </p>
+          <button
+            onClick={() => navigate('/meetings')}
+            className="text-blue-600 hover:text-blue-700 font-semibold"
+          >
             Back to Meetings
-          </Link>
+          </button>
         </div>
       </motion.div>
     );
   }
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const formatTime = (timeStr: string) => {
+    return new Date(`2000-01-01T${timeStr}`).toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit' 
+    });
+  };
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const getColorForName = (name: string) => {
+    const colors = [
+      'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500',
+      'bg-pink-500', 'bg-indigo-500', 'bg-teal-500', 'bg-red-500',
+      'bg-cyan-500', 'bg-lime-500', 'bg-yellow-500'
+    ];
+    const index = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[index % colors.length];
+  };
 
   return (
     <div className="space-y-6">
@@ -221,13 +126,13 @@ export function MeetingDetail() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Link
-          to="/meetings"
+        <button
+          onClick={() => navigate('/meetings')}
           className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 font-medium group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           Back to Meetings
-        </Link>
+        </button>
         
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
@@ -237,15 +142,17 @@ export function MeetingDetail() {
             <div className="flex flex-wrap items-center gap-4 mt-3 text-gray-600">
               <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg">
                 <CalendarIcon className="w-4 h-4 text-blue-600" />
-                {meeting.date}
+                {formatDate(meeting.date)}
               </div>
               <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg">
                 <Clock className="w-4 h-4 text-purple-600" />
-                {meeting.time}
+                {formatTime(meeting.time)} • {meeting.duration}
               </div>
               <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${
                 meeting.status === "completed"
                   ? "bg-gradient-to-r from-green-400 to-emerald-500 text-white"
+                  : meeting.status === "in-progress"
+                  ? "bg-gradient-to-r from-orange-400 to-yellow-500 text-white"
                   : "bg-gradient-to-r from-blue-400 to-cyan-500 text-white"
               }`}>
                 {meeting.status}
@@ -258,6 +165,9 @@ export function MeetingDetail() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="flex items-center gap-2 px-5 py-3 glass rounded-xl hover:bg-white transition-all"
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+              }}
             >
               <Share2 className="w-4 h-4" />
               Share
@@ -325,26 +235,17 @@ export function MeetingDetail() {
                         <Sparkles className="w-5 h-5 text-purple-500" />
                         Meeting Summary
                       </h3>
-                      <p className="text-gray-700 leading-relaxed">{meeting.summary}</p>
+                      <p className="text-gray-700 leading-relaxed">
+                        {meeting.summary || "No summary available for this meeting."}
+                      </p>
                     </div>
                     
-                    <div>
-                      <h3 className="font-bold text-gray-900 mb-3">Key Points</h3>
-                      <ul className="space-y-3">
-                        {meeting.keyPoints.map((point, idx) => (
-                          <motion.li
-                            key={idx}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.1 }}
-                            className="flex gap-3"
-                          >
-                            <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                            <span className="text-gray-700">{point}</span>
-                          </motion.li>
-                        ))}
-                      </ul>
-                    </div>
+                    {meeting.location && (
+                      <div>
+                        <h3 className="font-bold text-gray-900 mb-3">Location</h3>
+                        <p className="text-gray-700">{meeting.location}</p>
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
@@ -358,19 +259,28 @@ export function MeetingDetail() {
                   >
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="font-bold text-gray-900">Recording Transcript</h3>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all text-sm font-semibold"
-                      >
-                        <Play className="w-4 h-4" />
-                        Play Recording
-                      </motion.button>
+                      {meeting.recording_url && (
+                        <motion.a
+                          href={meeting.recording_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all text-sm font-semibold"
+                        >
+                          <Play className="w-4 h-4" />
+                          Play Recording
+                        </motion.a>
+                      )}
                     </div>
                     <div className="bg-white/60 rounded-xl p-4 max-h-96 overflow-y-auto">
-                      <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
-                        {meeting.transcript}
-                      </pre>
+                      {meeting.transcript ? (
+                        <pre className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
+                          {meeting.transcript}
+                        </pre>
+                      ) : (
+                        <p className="text-gray-500 text-center py-8">No transcript available for this meeting.</p>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -383,43 +293,50 @@ export function MeetingDetail() {
                     exit={{ opacity: 0, y: -10 }}
                     className="space-y-3"
                   >
-                    {meeting.actionItems.map((action, idx) => (
-                      <motion.div
-                        key={action.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                        className="p-4 bg-white/60 rounded-xl hover:bg-white transition-all border border-white/50"
-                      >
-                        <div className="flex items-start gap-3">
-                          {action.status === "completed" ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                          ) : (
-                            <Circle className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                          )}
-                          <div className="flex-1">
-                            <p className={`font-semibold ${
-                              action.status === "completed" ? "text-gray-500 line-through" : "text-gray-900"
-                            }`}>
-                              {action.task}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
-                              <span className="text-gray-600">Assigned to: {action.assignee}</span>
-                              <span className="text-gray-600">Due: {action.dueDate}</span>
-                              <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                action.priority === "high"
-                                  ? "bg-red-100 text-red-700"
-                                  : action.priority === "medium"
-                                  ? "bg-orange-100 text-orange-700"
-                                  : "bg-blue-100 text-blue-700"
+                    {actionItems.length > 0 ? (
+                      actionItems.map((action, idx) => (
+                        <motion.div
+                          key={action.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.1 }}
+                          className="p-4 bg-white/60 rounded-xl hover:bg-white transition-all border border-white/50"
+                        >
+                          <div className="flex items-start gap-3">
+                            {action.status === "completed" ? (
+                              <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                            ) : (
+                              <Circle className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                            )}
+                            <div className="flex-1">
+                              <p className={`font-semibold ${
+                                action.status === "completed" ? "text-gray-500 line-through" : "text-gray-900"
                               }`}>
-                                {action.priority}
-                              </span>
+                                {action.title}
+                              </p>
+                              {action.description && (
+                                <p className="text-sm text-gray-600 mt-1">{action.description}</p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
+                                <span className="text-gray-600">Assigned to: {action.assignee}</span>
+                                <span className="text-gray-600">Due: {formatDate(action.due_date)}</span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                  action.priority === "high"
+                                    ? "bg-red-100 text-red-700"
+                                    : action.priority === "medium"
+                                    ? "bg-orange-100 text-orange-700"
+                                    : "bg-blue-100 text-blue-700"
+                                }`}>
+                                  {action.priority}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 text-center py-8">No action items for this meeting.</p>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -438,26 +355,34 @@ export function MeetingDetail() {
           <div className="glass rounded-2xl p-6 shadow-xl">
             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-purple-500" />
-              Participants ({meeting.participants.length})
+              Participants ({meeting.meeting_participants?.length || 0})
             </h3>
             <div className="space-y-3">
-              {meeting.participants.map((participant, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 + idx * 0.1 }}
-                  className="flex items-center gap-3 p-3 bg-white/60 rounded-xl"
-                >
-                  <div className={`w-10 h-10 ${participant.color} rounded-full flex items-center justify-center shadow-lg`}>
-                    <span className="text-white text-sm font-bold">{participant.avatar}</span>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{participant.name}</p>
-                    <p className="text-xs text-gray-600">{participant.role}</p>
-                  </div>
-                </motion.div>
-              ))}
+              {meeting.meeting_participants && meeting.meeting_participants.length > 0 ? (
+                meeting.meeting_participants.map((participant: any, idx: number) => (
+                  <motion.div
+                    key={participant.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 + idx * 0.1 }}
+                    className="flex items-center gap-3 p-3 bg-white/60 rounded-xl"
+                  >
+                    <div className={`w-10 h-10 ${getColorForName(participant.participant_name)} rounded-full flex items-center justify-center shadow-lg`}>
+                      <span className="text-white text-sm font-bold">
+                        {getInitials(participant.participant_name)}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">{participant.participant_name}</p>
+                      {participant.role && (
+                        <p className="text-xs text-gray-600">{participant.role}</p>
+                      )}
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm text-center py-4">No participants listed</p>
+              )}
             </div>
           </div>
         </motion.div>

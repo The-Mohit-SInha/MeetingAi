@@ -16,7 +16,6 @@ import { Settings } from "./components/Settings";
 import { Login } from "./components/Login";
 import { Signup } from "./components/Signup";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { DiagnosticPage } from "./components/DiagnosticPage";
 
 export default function App() {
   useEffect(() => {
@@ -42,7 +41,6 @@ export default function App() {
       <ThemeProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/diagnostic" element={<DiagnosticPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route

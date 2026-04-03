@@ -1,9 +1,7 @@
 import { User } from '@supabase/supabase-js';
-import { generateDemoData } from './demoData';
 
 const STORAGE_KEY = 'meetingmanager_user';
 const USERS_KEY = 'meetingmanager_users';
-const DEMO_DATA_GENERATED_KEY = 'meetingmanager_demo_generated';
 
 interface StoredUser {
   id: string;
@@ -72,17 +70,6 @@ export const localSignUp = async (email: string, password: string, name: string)
 
   // Set as current user
   localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
-
-  // Generate demo data for first user
-  const isFirstUser = users.length === 1;
-  const hasGeneratedDemo = localStorage.getItem(`${DEMO_DATA_GENERATED_KEY}_${newUser.id}`);
-
-  if (isFirstUser && !hasGeneratedDemo) {
-    setTimeout(() => {
-      generateDemoData(newUser.id, newUser.name, newUser.email);
-      localStorage.setItem(`${DEMO_DATA_GENERATED_KEY}_${newUser.id}`, 'true');
-    }, 100);
-  }
 
   return toSupabaseUser(newUser);
 };
