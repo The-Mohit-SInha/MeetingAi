@@ -15,9 +15,10 @@ import {
   Sun,
   LogOut
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import { userAPI } from "../services/apiWrapper";
 
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
@@ -31,14 +32,46 @@ const navigation = [
 export function DashboardLayout() {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user) return;
+      try {
+        const profile = await userAPI.getProfile(user.id);
+        setUserProfile(profile);
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user]);
 
   const isActive = (href: string) => {
     if (href === "/") {
       return location.pathname === "/";
     }
     return location.pathname.startsWith(href);
+  };
+
+  // Generate avatar initials from name or email
+  const getInitials = () => {
+    if (userProfile?.name) {
+      return userProfile.name
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    if (userProfile?.email || user?.email) {
+      const email = userProfile?.email || user?.email;
+      return email.slice(0, 2).toUpperCase();
+    }
+    return 'U';
   };
 
   return (
@@ -150,7 +183,7 @@ export function DashboardLayout() {
                 whileHover={{ scale: 1.05 }}
                 className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center shadow-md cursor-pointer"
               >
-                <span className="text-white text-xs font-bold">JD</span>
+                <span className="text-white text-xs font-bold">{getInitials()}</span>
               </motion.div>
             </Link>
 
