@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 import { settingsAPI } from "../services/apiWrapper";
 import { isSupabaseConfigured } from "../../lib/supabase";
 import { motion } from "motion/react";
@@ -43,12 +44,6 @@ const settingsSections = [
     description: "Configure notification preferences"
   },
   {
-    id: "appearance",
-    title: "Appearance",
-    icon: Palette,
-    description: "Customize your interface"
-  },
-  {
     id: "privacy",
     title: "Privacy & Security",
     icon: Lock,
@@ -64,6 +59,7 @@ const settingsSections = [
 
 export function Settings() {
   const { theme, setTheme, compactMode, toggleCompactMode } = useTheme();
+  const { user } = useAuth();
   const [activeSection, setActiveSection] = useState("database");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -93,14 +89,18 @@ export function Settings() {
   });
 
   useEffect(() => {
-    fetchSettings();
+    if (user) {
+      fetchSettings();
+    }
     setIsDbConfigured(isSupabaseConfigured());
-  }, []);
+  }, [user]);
 
   const fetchSettings = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
-      const data = await settingsAPI.get();
+      const data = await settingsAPI.get(user.id);
 
       setSettings({
         autoSave: true,
@@ -133,12 +133,14 @@ export function Settings() {
   };
 
   const handleToggle = async (key: string) => {
+    if (!user) return;
+    
     const newValue = !settings[key as keyof typeof settings];
     setSettings(prev => ({ ...prev, [key]: newValue }));
 
     try {
       setSaving(true);
-      await settingsAPI.update({
+      await settingsAPI.update(user.id, {
         email_notifications: key === 'emailNotifications' ? newValue : settings.emailNotifications,
         push_notifications: key === 'pushNotifications' ? newValue : settings.pushNotifications,
       });
@@ -474,80 +476,6 @@ export function Settings() {
                     >
                       <motion.div
                         animate={{ x: settings[item.key] ? 28 : 2 }}
-                        className="absolute top-1 w-5 h-5 bg-white rounded-full shadow-lg"
-                      />
-                    </button>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Appearance Settings */}
-          {activeSection === "appearance" && (
-            <div className="space-y-6">
-              <div>
-                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-2`}>Appearance</h2>
-                <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Customize how Meeting AI looks</p>
-              </div>
-
-              <div className="space-y-4">
-                <div className={`p-4 ${theme === 'dark' ? 'bg-gray-800/60' : 'bg-white/60'} rounded-xl space-y-3`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 ${theme === 'dark' ? 'bg-purple-900/50' : 'bg-purple-100'} rounded-lg flex items-center justify-center`}>
-                      {theme === "dark" ? <Moon className={`w-5 h-5 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} /> : <Sun className={`w-5 h-5 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />}
-                    </div>
-                    <div className="flex-1">
-                      <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Theme</p>
-                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Choose your preferred theme</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {["light", "dark"].map((themeOption) => (
-                      <button
-                        key={themeOption}
-                        onClick={() => setTheme(themeOption as "light" | "dark")}
-                        className={`px-4 py-2 rounded-lg font-semibold transition-all capitalize ${
-                          theme === themeOption
-                            ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white"
-                            : `${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-gray-200 hover:border-purple-500' : 'bg-white border-gray-300 text-gray-700 hover:border-purple-500'} border`
-                        }`}
-                      >
-                        {themeOption}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {[
-                  { key: "compactMode", label: "Compact Mode", desc: "Reduce spacing for more content", icon: Palette, isGlobal: true },
-                  { key: "showAvatars", label: "Show Avatars", desc: "Display user avatars", icon: User, isGlobal: false },
-                  { key: "animationsEnabled", label: "Animations", desc: "Enable smooth animations", icon: Zap, isGlobal: false },
-                ].map((item, index) => (
-                  <motion.div
-                    key={item.key}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className={`flex items-center justify-between p-4 ${theme === 'dark' ? 'bg-gray-800/60' : 'bg-white/60'} rounded-xl`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 ${theme === 'dark' ? 'bg-green-900/50' : 'bg-green-100'} rounded-lg flex items-center justify-center`}>
-                        <item.icon className={`w-5 h-5 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`} />
-                      </div>
-                      <div>
-                        <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{item.label}</p>
-                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>{item.desc}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => item.isGlobal ? toggleCompactMode() : handleToggle(item.key)}
-                      className={`relative w-14 h-7 rounded-full transition-colors ${
-                        (item.isGlobal ? compactMode : settings[item.key]) ? "bg-gradient-to-r from-blue-500 to-purple-600" : `${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'}`
-                      }`}
-                    >
-                      <motion.div
-                        animate={{ x: (item.isGlobal ? compactMode : settings[item.key]) ? 28 : 2 }}
                         className="absolute top-1 w-5 h-5 bg-white rounded-full shadow-lg"
                       />
                     </button>
