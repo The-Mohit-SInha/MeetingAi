@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { settingsAPI } from "../services/apiWrapper";
 import { motion } from "motion/react";
-import { Link } from "react-router";
 import { 
   User, 
   Bell, 
@@ -198,25 +197,6 @@ export function Settings() {
                 </div>
               </motion.button>
             ))}
-            
-            {/* Admin Link */}
-            <div className={`${compactMode ? 'pt-2' : 'pt-4'} ${theme === 'dark' ? 'border-gray-700' : 'border-gray-300'} border-t`}>
-              <Link to="/admin">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={`w-full flex items-start gap-3 ${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} transition-all text-left bg-gradient-to-r from-red-500 to-orange-600 text-white shadow-lg hover:shadow-xl`}
-                >
-                  <Database className={`${compactMode ? 'w-4 h-4' : 'w-5 h-5'} flex-shrink-0 mt-0.5`} />
-                  <div>
-                    <p className={`${compactMode ? 'text-sm' : 'text-base'} font-semibold`}>Admin Panel</p>
-                    <p className="text-xs mt-0.5 text-white/80">
-                      Manage database & users
-                    </p>
-                  </div>
-                </motion.button>
-              </Link>
-            </div>
           </div>
         </motion.div>
 

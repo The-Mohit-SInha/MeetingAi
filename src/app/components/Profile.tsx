@@ -56,19 +56,17 @@ export function Profile() {
       console.log('✅ [Profile] Got user data:', userData);
 
       setProfile({
-        name: userData.name || '',
-        email: user.email || '', // Always use auth user's email
+        name: userData.name || user.email?.split('@')[0] || '',
+        email: userData.email || user.email || '',
         phone: userData.phone || '',
         location: userData.location || '',
         role: userData.role || '',
         department: userData.department || '',
-        joinDate: userData.join_date || userData.created_at ? new Date(userData.join_date || userData.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '',
+        joinDate: new Date(userData.join_date || userData.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
         bio: userData.bio || ''
       });
     } catch (error) {
       console.error("❌ [Profile] Error fetching profile:", error);
-      // Set at least the email from auth user
-      setProfile(prev => ({ ...prev, email: user.email || '' }));
     } finally {
       setLoading(false);
     }

@@ -13,13 +13,11 @@ import {
   Sparkles,
   Moon,
   Sun,
-  LogOut,
-  Shield
+  LogOut
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
-import { userAPI } from "../services/api";
 
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
@@ -33,28 +31,8 @@ const navigation = [
 export function DashboardLayout() {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const { signOut, user } = useAuth();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
-  const [userName, setUserName] = useState('');
-
-  useEffect(() => {
-    if (user) {
-      userAPI.getProfile(user.id).then((profile) => {
-        setUserName(profile.name || user.email || '');
-      }).catch(() => {
-        setUserName(user.email || '');
-      });
-    }
-  }, [user]);
-
-  const getUserInitials = () => {
-    if (!userName) return '?';
-    const words = userName.trim().split(' ');
-    if (words.length >= 2) {
-      return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-    }
-    return userName.substring(0, 2).toUpperCase();
-  };
 
   const isActive = (href: string) => {
     if (href === "/") {
@@ -172,20 +150,8 @@ export function DashboardLayout() {
                 whileHover={{ scale: 1.05 }}
                 className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center shadow-md cursor-pointer"
               >
-                <span className="text-white text-xs font-bold">{getUserInitials()}</span>
+                <span className="text-white text-xs font-bold">JD</span>
               </motion.div>
-            </Link>
-
-            <Link to="/admin">
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                className={`p-1.5 rounded-full transition-colors ${
-                  theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-white/60'
-                }`}
-                title="Admin Panel"
-              >
-                <Shield className={`w-4 h-4 ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`} />
-              </motion.button>
             </Link>
 
             <motion.button
