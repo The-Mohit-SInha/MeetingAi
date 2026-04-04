@@ -1,14 +1,18 @@
 /**
  * Groq Transcription Service - Using Groq's free Whisper API
  *
- * Groq provides a free tier for their Whisper API with excellent transcription quality.
- * Sign up at https://console.groq.com/ to get a free API key.
+ * This service uses a Supabase Edge Function to securely proxy requests to Groq API
+ * The API key is stored in Supabase environment variables (never exposed to client)
  *
- * Free tier limits:
+ * Groq free tier limits:
  * - 14,400 requests per day
  * - 30 requests per minute
  * - Audio file size limit: 25MB
+ *
+ * Sign up at https://console.groq.com/ to get a free API key.
  */
+
+const SUPABASE_URL = 'https://qjrmxudyrwcqwpkmrggn.supabase.co';
 
 export interface TranscriptionOptions {
   language?: string;
@@ -43,16 +47,19 @@ export async function transcribeWithGroq(
 
     // Create FormData for multipart upload
     const formData = new FormData();
-    formData.append('file', audioBlob, 'audio.webm');
+
+    // Groq Whisper API accepts audio files
+    const filename = 'audio.webm';
+    formData.append('file', audioBlob, filename);
     formData.append('model', 'whisper-large-v3-turbo'); // Fast and accurate
     formData.append('language', language);
     formData.append('temperature', temperature.toString());
     formData.append('response_format', 'verbose_json'); // Get detailed response
 
-    console.log('📤 Sending request to /make-server-af44c8dd/api/transcribe...');
+    console.log('📤 Sending request to Supabase Edge Function...');
 
-    // Call our edge function proxy
-    const response = await fetch('/make-server-af44c8dd/api/transcribe', {
+    // Call our Supabase edge function proxy
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/transcribe`, {
       method: 'POST',
       body: formData,
     });
@@ -135,11 +142,11 @@ export async function transcribeChunksWithGroq(
 }
 
 /**
- * Check if Groq API is configured
+ * Check if Groq API is configured on the backend
  */
 export async function isGroqConfigured(): Promise<boolean> {
   try {
-    const response = await fetch('/make-server-af44c8dd/api/transcribe/health');
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/transcribe/health`);
     if (!response.ok) {
       console.warn('⚠️ Health check failed:', response.status);
       return false;

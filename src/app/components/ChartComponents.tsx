@@ -16,7 +16,7 @@ import {
   BarChart,
   Bar
 } from "recharts";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 
 interface ChartProps {
   data: any[];
@@ -27,6 +27,7 @@ export function MeetingsAreaChart({ data }: ChartProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [mounted, setMounted] = useState(false);
+  const gradientId = useId();
 
   useEffect(() => {
     setMounted(true);
@@ -49,37 +50,37 @@ export function MeetingsAreaChart({ data }: ChartProps) {
     <ResponsiveContainer width="100%" height="100%" minHeight={160}>
       <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
         <defs>
-          <linearGradient id="meetingsGradient" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
             <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
-        <XAxis 
-          dataKey="day" 
-          stroke={isDark ? '#9ca3af' : '#6b7280'} 
+        <XAxis
+          dataKey="day"
+          stroke={isDark ? '#9ca3af' : '#6b7280'}
           style={{ fontSize: '12px' }}
         />
-        <YAxis 
-          stroke={isDark ? '#9ca3af' : '#6b7280'} 
+        <YAxis
+          stroke={isDark ? '#9ca3af' : '#6b7280'}
           style={{ fontSize: '12px' }}
         />
-        <Tooltip 
-          contentStyle={{ 
-            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)', 
+        <Tooltip
+          contentStyle={{
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
             border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
             borderRadius: '12px',
             backdropFilter: 'blur(10px)',
             color: isDark ? '#e5e7eb' : '#1f2937'
-          }} 
+          }}
         />
-        <Area 
-          type="monotone" 
-          dataKey="meetings" 
-          stroke="#3b82f6" 
-          fillOpacity={1} 
-          fill="url(#meetingsGradient)"
-          strokeWidth={2} 
+        <Area
+          type="monotone"
+          dataKey="meetings"
+          stroke="#3b82f6"
+          fillOpacity={1}
+          fill={`url(#${gradientId})`}
+          strokeWidth={2}
         />
       </AreaChart>
     </ResponsiveContainer>

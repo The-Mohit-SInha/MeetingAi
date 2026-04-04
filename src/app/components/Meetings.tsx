@@ -32,7 +32,9 @@ import { aiProcessingService } from "../services/googleMeetService";
 import { supabase } from "../../lib/supabase";
 import { transcribeAudioBlob } from "../services/localTranscriptionService";
 import { transcribeWithGroq, isGroqConfigured } from "../services/groqTranscriptionService";
-import { TranscriptionTestPanel } from "./TranscriptionTestPanel";
+import { transcribeWithGroqDirect, convertToAudioBlob } from "../services/groqDirectService";
+import { RecordingDiagnostic } from "./RecordingDiagnostic";
+import { AudioLevelIndicator } from "./AudioLevelIndicator";
 
 export function Meetings() {
   const { theme, compactMode } = useTheme();
@@ -75,6 +77,7 @@ export function Meetings() {
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
   const [groqConfigured, setGroqConfigured] = useState(false);
+  const [displayCaptureAllowed, setDisplayCaptureAllowed] = useState(true);
 
   // Ref to accumulate transcript in real-time (avoids stale closure issues)
   const transcriptRef = useRef('');
@@ -86,8 +89,29 @@ export function Meetings() {
       fetchMeetings();
       // Check if Groq is configured
       isGroqConfigured().then(setGroqConfigured);
+
+      // Check if display capture is allowed in this environment
+      checkDisplayCapturePermission();
     }
   }, [user]);
+
+  const checkDisplayCapturePermission = async () => {
+    try {
+      // Try to check if getDisplayMedia is available and not blocked
+      if (!navigator.mediaDevices?.getDisplayMedia) {
+        setDisplayCaptureAllowed(false);
+        return;
+      }
+
+      // Check permissions policy
+      const permissionStatus = (document as any).featurePolicy?.allowsFeature?.('display-capture');
+      if (permissionStatus === false) {
+        setDisplayCaptureAllowed(false);
+      }
+    } catch (error) {
+      console.warn('Could not check display capture permission:', error);
+    }
+  };
 
   // Real-time subscription: auto-refresh meetings list when any meeting row changes
   useEffect(() => {
@@ -344,6 +368,18 @@ export function Meetings() {
         }
         console.log('✅ Got tab audio tracks:', audioTracks.length);
 
+        // Debug audio track settings
+        audioTracks.forEach((track, i) => {
+          console.log(`🎵 Audio track ${i}:`, {
+            id: track.id,
+            label: track.label,
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState,
+            settings: track.getSettings(),
+          });
+        });
+
         setMediaStream(displayStream);
 
         // Auto-stop when user clicks "Stop sharing" in the browser bar
@@ -352,15 +388,103 @@ export function Meetings() {
           stopTabRecording();
         });
 
-        // Record the tab's audio stream directly (screencast style — no mic)
+        // CRITICAL FIX: Chrome bug - recording from audio-only stream = silent audio
+        // Solution: Record from FULL displayStream (video+audio) using video mimeType
+        // The video track MUST be in the recorded stream for audio to flow properly
+
         const audioOnlyStream = new MediaStream(audioTracks);
-        const recorder = new MediaRecorder(audioOnlyStream, {
-          mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-            ? 'audio/webm;codecs=opus' : 'audio/webm',
+
+        // Create AudioContext to monitor audio levels (from audio-only for monitoring)
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(audioOnlyStream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        let silentChunks = 0;
+        let totalChunks = 0;
+
+        // Monitor audio levels every 500ms
+        const audioMonitor = setInterval(() => {
+          analyser.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+          totalChunks++;
+
+          if (average < 5) {
+            silentChunks++;
+          }
+
+          console.log(`🔊 Audio level: ${Math.round(average)}/255 ${average < 5 ? '❌ SILENT!' : '✅ ACTIVE'}`);
+
+          if (totalChunks >= 3 && silentChunks === totalChunks) {
+            console.warn('⚠️ WARNING: No audio detected after 3 checks! The tab may not be playing audio or "Share tab audio" was not checked.');
+          }
+        }, 500);
+
+        // Record from FULL displayStream (must include video track for audio to work)
+        // Chrome bug: audio tracks go silent if video track is not in the recorded stream
+        let mimeType = 'video/webm';
+        if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+          mimeType = 'video/webm;codecs=vp9,opus';
+        } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+          mimeType = 'video/webm;codecs=vp8,opus';
+        } else if (MediaRecorder.isTypeSupported('video/webm')) {
+          mimeType = 'video/webm';
+        }
+
+        console.log('🎥 Recording from full stream (video+audio) to preserve audio data');
+        console.log('📝 Note: File will contain video, but Whisper AI will extract only audio');
+
+        // Record from displayStream (with video track)
+        const recorder = new MediaRecorder(displayStream, {
+          mimeType: mimeType,
+          videoBitsPerSecond: 100000, // Low bitrate (100kbps) for minimal video data
+          audioBitsPerSecond: 128000, // Good audio quality (128kbps)
         });
+
+        console.log('🎙️ MediaRecorder config:', {
+          mimeType: recorder.mimeType,
+          state: recorder.state,
+          audioBitsPerSecond: recorder.audioBitsPerSecond,
+        });
+
         const chunks: Blob[] = [];
-        recorder.ondataavailable = (e) => { if (e.data.size > 0) { chunks.push(e.data); setAudioChunks(prev => [...prev, e.data]); } };
-        recorder.onstop = () => { setRecordedAudioBlob(new Blob(chunks, { type: 'audio/webm' })); };
+        let dataEventCount = 0;
+
+        recorder.ondataavailable = (e) => {
+          dataEventCount++;
+          console.log(`📦 Data available event #${dataEventCount}:`, {
+            size: `${(e.data.size / 1024).toFixed(2)} KB`,
+            type: e.data.type,
+          });
+
+          if (e.data.size > 0) {
+            chunks.push(e.data);
+            setAudioChunks(prev => [...prev, e.data]);
+          } else {
+            console.warn('⚠️ Empty data chunk received!');
+          }
+        };
+
+        recorder.onstop = () => {
+          clearInterval(audioMonitor);
+          audioContext.close();
+
+          const finalBlob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+          console.log('🎬 Recording stopped:', {
+            totalDataEvents: dataEventCount,
+            chunksCollected: chunks.length,
+            finalBlobSize: `${(finalBlob.size / 1024 / 1024).toFixed(2)} MB`,
+            mimeType: finalBlob.type,
+            silentChunks,
+            totalChunks,
+            audioDetected: silentChunks < totalChunks,
+          });
+
+          setRecordedAudioBlob(finalBlob);
+        };
+
         recorder.start(1000);
         setMediaRecorder(recorder);
 
@@ -438,73 +562,90 @@ export function Meetings() {
       if (isMic) {
         finalTranscript = transcriptRef.current?.trim() || transcript?.trim() || '';
       } else if (isTab) {
-        const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        console.log('📊 Audio blob details:', {
+        // Get the blob type from the recorded chunks (will be video/webm with audio)
+        const blobType = audioChunks[0]?.type || 'video/webm';
+        const finalBlob = new Blob(audioChunks, { type: blobType });
+        console.log('📊 Recording blob details:', {
           size: `${(finalBlob.size / 1024 / 1024).toFixed(2)} MB`,
+          sizeBytes: finalBlob.size,
           type: finalBlob.type,
           chunks: audioChunks.length,
-          groqConfigured,
+          note: 'File contains video+audio (Whisper will extract audio only)',
         });
+
+        if (finalBlob.size === 0) {
+          console.error('❌ CRITICAL: Audio blob is empty! No audio was recorded.');
+          console.error('   This usually means:');
+          console.error('   1. "Share tab audio" was NOT checked in the tab picker');
+          console.error('   2. The tab had no audio playing during recording');
+          console.error('   3. Audio was muted in the browser tab');
+          alert('No audio was recorded!\n\nPlease make sure:\n1. You checked "Share tab audio" when selecting the tab\n2. Audio was actually playing in the tab\n3. The tab audio was not muted');
+        } else {
+          // Let user download the raw recording to verify it contains actual audio
+          console.log('💾 Creating downloadable file for verification...');
+          const audioUrl = URL.createObjectURL(finalBlob);
+          console.log('🎵 Recording blob URL created:', audioUrl);
+          console.log('💡 TIP: Copy the URL above, paste in new tab to play/download and verify audio');
+
+          // Also create a download button in console (some browsers support this)
+          console.log('%c⬇️ DOWNLOAD RECORDING', 'background: #4CAF50; color: white; padding: 8px 12px; border-radius: 4px; font-weight: bold;');
+          console.log('Right-click the blob URL above and "Open in new tab" to verify the recording contains audio');
+
+          // Create a temporary download link
+          const downloadLink = document.createElement('a');
+          downloadLink.href = audioUrl;
+          downloadLink.download = `tab-recording-${Date.now()}.webm`;
+          downloadLink.style.display = 'none';
+          document.body.appendChild(downloadLink);
+
+          // Clean up after a delay
+          setTimeout(() => {
+            URL.revokeObjectURL(audioUrl);
+            document.body.removeChild(downloadLink);
+          }, 60000); // Keep link available for 1 minute
+        }
 
         if (finalBlob.size > 0) {
           try {
-            // Refresh Groq configuration status before transcribing
-            const isConfigured = await isGroqConfigured();
-            console.log('🔍 Groq configuration check:', isConfigured);
+            // Use Groq API directly (free tier, fast and accurate)
+            setTranscriptionProgress('Converting video to audio...');
+            console.log('🔄 Converting video to audio format...');
 
-            // Try Groq first if configured (free tier, high quality)
-            if (isConfigured) {
-              setTranscriptionProgress('🎯 Transcribing with Groq Whisper API...');
-              console.log('🎯 Using Groq Whisper API for transcription');
-              finalTranscript = await transcribeWithGroq(finalBlob, {
-                language: 'en',
-                temperature: 0,
-              });
-              setTranscriptionProgress('');
-              setTranscript(finalTranscript);
-              console.log('✅ Groq transcription complete:', finalTranscript.length, 'chars');
-            } else {
-              // Fallback to local browser-based Whisper
-              setTranscriptionProgress('Loading AI model (first time may take a moment)...');
-              console.log('⚠️ Groq not configured, falling back to local Whisper');
-              finalTranscript = await transcribeAudioBlob(
-                finalBlob,
-                (progress) => {
-                  setTranscriptionProgress(`Downloading model: ${Math.round(progress * 100)}%`);
-                },
-                (loading) => {
-                  if (!loading) setTranscriptionProgress('Transcribing audio...');
-                },
-              );
-              setTranscriptionProgress('');
-              setTranscript(finalTranscript);
+            const audioBlob = await convertToAudioBlob(finalBlob);
+            console.log('✅ Audio conversion complete, starting transcription...');
+
+            setTranscriptionProgress('Transcribing with Groq Whisper AI...');
+            console.log('🤖 Using Groq Whisper API for transcription');
+
+            finalTranscript = await transcribeWithGroqDirect(audioBlob, {
+              language: 'en',
+              temperature: 0,
+              model: 'whisper-large-v3-turbo'
+            });
+
+            setTranscriptionProgress('');
+            setTranscript(finalTranscript);
+
+            console.log('✅ Transcription complete:', {
+              length: finalTranscript.length,
+              preview: finalTranscript.substring(0, 100),
+              isEmpty: finalTranscript.trim().length === 0,
+            });
+
+            if (finalTranscript.trim().length === 0) {
+              console.warn('⚠️ WARNING: Transcription returned empty text!');
+              console.warn('   Possible causes:');
+              console.warn('   1. Audio blob contained silence (no actual audio)');
+              console.warn('   2. Audio was too short (less than 1 second)');
+              console.warn('   3. "Share tab audio" was not checked when selecting tab');
+              console.warn('   4. Tab was muted or not playing audio');
             }
           } catch (transcribeErr: any) {
-            console.error('⚠️ Transcription failed:', transcribeErr);
+            console.error('❌ Transcription failed:', transcribeErr);
             setTranscriptionProgress('');
             finalTranscript = '';
-            // If Groq fails, try local fallback
-            if (groqConfigured && transcribeErr.message?.includes('Groq')) {
-              try {
-                console.log('🔄 Groq failed, trying local Whisper fallback...');
-                setTranscriptionProgress('Loading local model...');
-                finalTranscript = await transcribeAudioBlob(
-                  finalBlob,
-                  (progress) => {
-                    setTranscriptionProgress(`Downloading model: ${Math.round(progress * 100)}%`);
-                  },
-                  (loading) => {
-                    if (!loading) setTranscriptionProgress('Transcribing audio...');
-                  },
-                );
-                setTranscriptionProgress('');
-                setTranscript(finalTranscript);
-                console.log('✅ Local fallback transcription complete');
-              } catch (fallbackErr: any) {
-                console.error('❌ Both Groq and local transcription failed:', fallbackErr);
-                setTranscriptionProgress('');
-              }
-            }
+
+            alert(`Transcription failed: ${transcribeErr.message}\n\nPlease check:\n1. Audio was actually playing in the tab\n2. "Share tab audio" was checked\n3. Browser console for details`);
           }
         }
       }
@@ -525,17 +666,18 @@ export function Meetings() {
         user_id: user?.id,
       }, []);
 
-      // For tab recordings: also upload the raw audio blob to Supabase Storage
+      // For tab recordings: also upload the raw recording blob to Supabase Storage
       if (isTab && meetingData?.id && user) {
-        const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const blobType = audioChunks[0]?.type || 'video/webm';
+        const finalBlob = new Blob(audioChunks, { type: blobType });
         if (finalBlob.size > 0) {
           try {
-            console.log('📤 Uploading tab audio blob...', (finalBlob.size / 1024 / 1024).toFixed(2), 'MB');
+            console.log('📤 Uploading tab recording blob...', (finalBlob.size / 1024 / 1024).toFixed(2), 'MB');
             const recordingUrl = await recordingsAPI.uploadAudio(finalBlob, user.id, meetingData.id);
-            console.log('✅ Audio uploaded:', recordingUrl);
+            console.log('✅ Recording uploaded:', recordingUrl);
             await meetingsAPI.update(meetingData.id, { recording_url: recordingUrl }, user.id);
           } catch (uploadErr: any) {
-            console.error('⚠️ Audio upload failed (meeting saved without recording):', uploadErr);
+            console.error('⚠️ Recording upload failed (meeting saved without recording):', uploadErr);
           }
         }
       }
@@ -615,6 +757,15 @@ export function Meetings() {
           <Mic className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
           Record Audio
         </motion.button>
+      </motion.div>
+
+      {/* Recording Diagnostic Tool */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <RecordingDiagnostic />
       </motion.div>
 
       {/* Stats Bar */}
@@ -1092,6 +1243,21 @@ export function Meetings() {
                   <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
                     Audio Source
                   </label>
+
+                  {/* Environment Restriction Warning */}
+                  {!displayCaptureAllowed && (
+                    <div className={`mb-4 p-3 rounded-lg border ${
+                      theme === 'dark'
+                        ? 'bg-yellow-900/20 border-yellow-800/30 text-yellow-400'
+                        : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                    }`}>
+                      <p className="text-xs font-medium mb-1">⚠️ Tab Capture Not Available</p>
+                      <p className="text-xs opacity-90">
+                        Tab recording is disabled in Figma Make preview. Deploy this app to a standard web host to enable tab capture.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
@@ -1128,36 +1294,49 @@ export function Meetings() {
                     </motion.button>
 
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setSelectedSource('tab')}
+                      whileHover={{ scale: displayCaptureAllowed ? 1.02 : 1 }}
+                      whileTap={{ scale: displayCaptureAllowed ? 0.98 : 1 }}
+                      onClick={() => displayCaptureAllowed && setSelectedSource('tab')}
+                      disabled={!displayCaptureAllowed}
                       className={`relative p-4 rounded-xl border-2 transition-all text-left ${
-                        selectedSource === 'tab'
+                        !displayCaptureAllowed
                           ? theme === 'dark'
-                            ? 'border-red-500 bg-red-500/10'
-                            : 'border-red-500 bg-red-50'
-                          : theme === 'dark'
-                            ? 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
+                            ? 'border-gray-800 bg-gray-900/50 opacity-50 cursor-not-allowed'
+                            : 'border-gray-200 bg-gray-100 opacity-50 cursor-not-allowed'
+                          : selectedSource === 'tab'
+                            ? theme === 'dark'
+                              ? 'border-red-500 bg-red-500/10'
+                              : 'border-red-500 bg-red-50'
+                            : theme === 'dark'
+                              ? 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
                       }`}
                     >
-                      {selectedSource === 'tab' && (
+                      {selectedSource === 'tab' && displayCaptureAllowed && (
                         <div className="absolute top-2 right-2">
                           <CheckCircle2 className="w-5 h-5 text-red-500" />
                         </div>
                       )}
+                      {!displayCaptureAllowed && (
+                        <div className="absolute top-2 right-2">
+                          <X className="w-4 h-4 text-gray-500" />
+                        </div>
+                      )}
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
-                        selectedSource === 'tab'
+                        selectedSource === 'tab' && displayCaptureAllowed
                           ? 'bg-gradient-to-br from-red-500 to-orange-600'
                           : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
                       }`}>
-                        <Monitor className={`w-5 h-5 ${selectedSource === 'tab' ? 'text-white' : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                        <Monitor className={`w-5 h-5 ${selectedSource === 'tab' && displayCaptureAllowed ? 'text-white' : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
                       </div>
                       <p className={`text-sm font-semibold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                        Browser Tab
+                        Browser Tab {!displayCaptureAllowed && '(Blocked)'}
                       </p>
                       <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Capture audio from any other browser tab
+                        {displayCaptureAllowed
+                          ? 'Capture audio from any other browser tab'
+                          : 'Not available in this environment'
+                        }
                       </p>
                     </motion.button>
                   </div>
@@ -1201,11 +1380,7 @@ export function Meetings() {
                     <li>Audio is captured directly from the tab's stream — no microphone needed</li>
                   </ol>
                   <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-blue-400/80' : 'text-blue-600'}`}>
-                    {groqConfigured ? (
-                      <>✨ Transcription powered by <strong>Groq Whisper API</strong> (free, high-quality)</>
-                    ) : (
-                      <>Transcription runs locally in your browser (free, powered by Whisper AI). For better quality, add GROQ_API_KEY to your environment.</>
-                    )}
+                    ✨ Transcription powered by <strong>Whisper AI</strong> running locally in your browser (100% free, private)
                   </p>
                 </motion.div>
               )}
@@ -1245,6 +1420,12 @@ export function Meetings() {
                         <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                           Duration: {formatTime(recordingTime)}
                         </p>
+                        {/* Real-time audio level indicator */}
+                        {mediaStream && (
+                          <div className="mt-2">
+                            <AudioLevelIndicator stream={mediaStream} />
+                          </div>
+                        )}
                       </div>
                     </div>
                     <motion.button
@@ -1374,9 +1555,6 @@ export function Meetings() {
       </AnimatePresence>,
       document.body
       )}
-
-      {/* Transcription Test Panel - Remove this after testing */}
-      <TranscriptionTestPanel />
     </div>
   );
 }

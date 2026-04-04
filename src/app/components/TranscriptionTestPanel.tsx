@@ -22,23 +22,33 @@ export function TranscriptionTestPanel() {
       testResults.push({ step: 'Health Check', status: 'pending', message: 'Checking Groq API configuration...' });
       setResults([...testResults]);
 
-      const healthResponse = await fetch('/make-server-af44c8dd/api/transcribe/health');
-      const healthData = await healthResponse.json();
+      const healthResponse = await fetch('https://qjrmxudyrwcqwpkmrggn.supabase.co/functions/v1/transcribe/health');
 
-      if (healthData.configured) {
-        testResults[0] = {
-          step: 'Health Check',
-          status: 'success',
-          message: `Groq API is configured (${healthData.model})`,
-          data: healthData,
-        };
-      } else {
+      if (!healthResponse.ok) {
         testResults[0] = {
           step: 'Health Check',
           status: 'error',
-          message: 'Groq API key not found in environment',
-          data: healthData,
+          message: `Edge function not responding (${healthResponse.status})`,
+          data: { configured: false },
         };
+      } else {
+        const healthData = await healthResponse.json();
+
+        if (healthData.configured) {
+          testResults[0] = {
+            step: 'Health Check',
+            status: 'success',
+            message: `Groq API is configured (${healthData.model})`,
+            data: healthData,
+          };
+        } else {
+          testResults[0] = {
+            step: 'Health Check',
+            status: 'error',
+            message: 'GROQ_API_KEY not set in Supabase environment',
+            data: healthData,
+          };
+        }
       }
     } catch (error: any) {
       testResults[0] = {

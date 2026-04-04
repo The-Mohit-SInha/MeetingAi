@@ -20,10 +20,9 @@ export async function getTranscriber(
 
   loadingPromise = pipeline(
     'automatic-speech-recognition',
-    'onnx-community/whisper-tiny.en',
+    'Xenova/whisper-tiny.en',
     {
-      dtype: 'q8',
-      device: 'wasm',
+      quantized: true,
       progress_callback: (p: any) => {
         if (p.status === 'progress' && onProgress) {
           onProgress(p.progress / 100);
