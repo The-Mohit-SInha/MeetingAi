@@ -62,6 +62,7 @@ export function Login() {
             access_type: 'offline',
             prompt: 'consent',
           },
+          scopes: 'email profile openid',
         },
       });
       if (error) throw error;
