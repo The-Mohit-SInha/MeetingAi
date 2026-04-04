@@ -132,26 +132,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             );
           }
           
+          // Extract name and email from OAuth metadata
+          const googleName = session.user.user_metadata?.full_name
+            || session.user.user_metadata?.name
+            || session.user.email?.split('@')[0]
+            || 'User';
+          const googleAvatar = session.user.user_metadata?.avatar_url || null;
+          const googleEmail = session.user.email || '';
+
+          console.log('📝 [AuthContext] Extracted OAuth data - Name:', googleName, 'Email:', googleEmail);
+
           const { data: existingUser } = await supabase
             .from('users')
-            .select('id')
+            .select('id, name, email')
             .eq('id', session.user.id)
             .maybeSingle();
 
           console.log('🔍 [AuthContext] Existing user in DB:', existingUser);
 
           if (!existingUser) {
-            const googleName = session.user.user_metadata?.full_name
-              || session.user.user_metadata?.name
-              || session.user.email?.split('@')[0]
-              || 'User';
-            const googleAvatar = session.user.user_metadata?.avatar_url || null;
-            const googleEmail = session.user.email || 'no-email@example.com'; // Fallback for misconfigured OAuth
-
+            // Create new user profile with OAuth data
             console.log('➕ [AuthContext] Creating new user profile in DB');
-            console.log('📝 [AuthContext] Name:', googleName);
-            console.log('📧 [AuthContext] Email:', googleEmail);
-            console.log('🖼️ [AuthContext] Avatar:', googleAvatar);
 
             const { data: insertedUser, error: insertError } = await supabase.from('users').upsert({
               id: session.user.id,
@@ -163,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               location: null,
               bio: null,
               join_date: new Date().toISOString().split('T')[0],
-            }, { onConflict: 'id', ignoreDuplicates: true });
+            }, { onConflict: 'id', ignoreDuplicates: false });
 
             if (insertError) {
               console.error('❌ [AuthContext] Error inserting user:', insertError);
@@ -189,7 +190,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               console.log('✅ [AuthContext] User settings created:', insertedSettings);
             }
           } else {
-            console.log('ℹ️ [AuthContext] User already exists in DB, skipping creation');
+            // User exists - check if name or email is empty and backfill from OAuth
+            const needsNameUpdate = !existingUser.name || existingUser.name.trim() === '';
+            const needsEmailUpdate = !existingUser.email || existingUser.email.trim() === '';
+
+            if (needsNameUpdate || needsEmailUpdate) {
+              console.log('🔄 [AuthContext] Backfilling empty user data from OAuth');
+              console.log('   Name empty?', needsNameUpdate, '- Will use:', googleName);
+              console.log('   Email empty?', needsEmailUpdate, '- Will use:', googleEmail);
+
+              const updateData: any = {};
+              if (needsNameUpdate) updateData.name = googleName;
+              if (needsEmailUpdate) updateData.email = googleEmail;
+
+              const { data: updatedUser, error: updateError } = await supabase
+                .from('users')
+                .update(updateData)
+                .eq('id', session.user.id)
+                .select()
+                .single();
+
+              if (updateError) {
+                console.error('❌ [AuthContext] Error updating user:', updateError);
+              } else {
+                console.log('✅ [AuthContext] User profile backfilled:', updatedUser);
+              }
+            } else {
+              console.log('ℹ️ [AuthContext] User profile already complete, no backfill needed');
+            }
           }
         } catch (err) {
           console.error('❌ [AuthContext] Error creating Google OAuth user profile:', err);

@@ -65,19 +65,17 @@ export function Profile() {
       console.log('✅ [Profile] Got user data from database:', userData);
 
       // Fall back to OAuth user metadata if database values are empty or missing
-      // Use a helper to check if a value is truly empty (null, undefined, or empty string)
-      const isEmpty = (val: any) => !val || val === '';
-      
-      const displayName = isEmpty(userData.name)
-        ? (user.user_metadata?.full_name || 
+      // Always prefer OAuth metadata over empty/whitespace-only database values
+      const displayName = (userData?.name && userData.name.trim() !== '')
+        ? userData.name
+        : (user.user_metadata?.full_name || 
            user.user_metadata?.name || 
            user.email?.split('@')[0] || 
-           'User')
-        : userData.name;
+           'User');
       
-      const displayEmail = isEmpty(userData.email) 
-        ? (user.email || '')
-        : userData.email;
+      const displayEmail = (userData?.email && userData.email.trim() !== '')
+        ? userData.email
+        : (user.email || '');
 
       console.log('📝 [Profile] Using display name:', displayName);
       console.log('📝 [Profile] Using display email:', displayEmail);
