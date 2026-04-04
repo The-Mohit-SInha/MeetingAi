@@ -1,26 +1,11 @@
-import { Outlet, Link, useLocation, useNavigate } from "react-router";
+import { Video, Bell, LogOut, Moon, Sun, LayoutDashboard, CheckSquare, Calendar as CalendarIcon, BarChart3, Users, Settings as SettingsIcon } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  LayoutDashboard, 
-  Calendar as CalendarIcon, 
-  CheckSquare, 
-  Users, 
-  BarChart3, 
-  Video,
-  Search,
-  Bell,
-  Settings as SettingsIcon,
-  Sparkles,
-  Moon,
-  Sun,
-  LogOut
-} from "lucide-react";
 import { useState, useEffect } from "react";
-import { useTheme } from "../context/ThemeContext";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { useLiveMeeting } from "../context/LiveMeetingContext";
 import { userAPI } from "../services/apiWrapper";
-import { GoogleMeetOnboardingModal } from "./GoogleMeetOnboarding";
 import { LiveMeetingBanner } from "./LiveMeetingBanner";
 
 const navigation = [
@@ -39,7 +24,6 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const { liveMeeting, elapsedSeconds, showPanel, setShowPanel } = useLiveMeeting();
   const [userProfile, setUserProfile] = useState<any>(null);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -66,11 +50,6 @@ export function DashboardLayout() {
     };
 
     fetchUserProfile();
-
-    const hasSeenOnboarding = localStorage.getItem('gmeet_onboarding_done');
-    if (!hasSeenOnboarding) {
-      setShowOnboarding(true);
-    }
   }, [user]);
 
   const isActive = (href: string) => {
@@ -322,15 +301,6 @@ export function DashboardLayout() {
           <Outlet />
         </motion.div>
       </motion.div>
-
-      {/* Google Meet Onboarding Modal */}
-      <GoogleMeetOnboardingModal
-        open={showOnboarding}
-        onClose={() => {
-          setShowOnboarding(false);
-          localStorage.setItem('gmeet_onboarding_done', 'true');
-        }}
-      />
     </div>
   );
 }
