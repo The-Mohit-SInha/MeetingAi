@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -26,7 +27,9 @@ import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { useLiveMeeting } from "../context/LiveMeetingContext";
 import { meetingsAPI } from "../services/apiWrapper";
-import { googleMeetOAuth } from "../services/googleMeetService";
+import { recordingsAPI } from "../services/apiWrapper";
+import { googleMeetOAuth, aiProcessingService } from "../services/googleMeetService";
+import { supabase } from "../../lib/supabase";
 
 export function Meetings() {
   const { theme, compactMode } = useTheme();
@@ -69,11 +72,42 @@ export function Meetings() {
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
 
+  // Ref to accumulate transcript in real-time (avoids stale closure issues)
+  const transcriptRef = useRef('');
+  const speechRecRef = useRef<any>(null);
+
   useEffect(() => {
     if (user) {
       fetchMeetings();
       googleMeetOAuth.getConnectionStatus(user.id).then(s => setGoogleMeetConnected(s?.google_meet_connected || false));
     }
+  }, [user]);
+
+  // Real-time subscription: auto-refresh meetings list when any meeting row changes
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('meetings-list-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meetings',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          console.log('📡 Real-time meeting update:', payload.eventType, payload.new?.ai_processing_status);
+          // Re-fetch the full list to keep everything in sync
+          fetchMeetings();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const fetchMeetings = async () => {
@@ -196,9 +230,96 @@ export function Meetings() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Helper: create and start a SpeechRecognition instance that accumulates
+  // into transcriptRef and syncs to React state on every result.
+  const startSpeechRecognition = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('⚠️ Web Speech API not supported in this browser');
+      return null;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
+
+    // Track whether we intentionally stopped (vs auto-restart on silence)
+    let stopped = false;
+
+    recognition.onresult = (event: any) => {
+      // Rebuild the full transcript from all results in this session
+      let sessionFinal = '';
+      let sessionInterim = '';
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          sessionFinal += result[0].transcript + ' ';
+        } else {
+          sessionInterim += result[0].transcript;
+        }
+      }
+
+      // The ref holds everything from PREVIOUS recognition sessions.
+      // We only commit sessionFinal to the ref when the session ends (onend).
+      // For display, we show: committed ref text + current session final + interim.
+      const committed = (recognition as any)._committedText || '';
+      const display = committed + sessionFinal + sessionInterim;
+      setTranscript(display);
+
+      // Stash current session's final text so onend can commit it
+      (recognition as any)._sessionFinal = sessionFinal;
+    };
+
+    recognition.onerror = (event: any) => {
+      const ignorable = ['no-speech', 'aborted'];
+      if (!ignorable.includes(event.error)) {
+        console.warn('⚠️ Speech recognition error:', event.error);
+      }
+    };
+
+    recognition.onend = () => {
+      // Commit this session's finalized text into the ref
+      const sessionFinal = (recognition as any)._sessionFinal || '';
+      const committed = ((recognition as any)._committedText || '') + sessionFinal;
+      (recognition as any)._committedText = committed;
+      transcriptRef.current = committed.trim();
+
+      // Auto-restart if not intentionally stopped
+      if (!stopped) {
+        try {
+          console.log('🔄 Restarting speech recognition...');
+          recognition.start();
+        } catch (e) {
+          console.warn('⚠️ Could not restart speech recognition:', e);
+        }
+      }
+    };
+
+    // Expose a clean stop method
+    const originalStop = recognition.stop.bind(recognition);
+    recognition.stop = () => {
+      stopped = true;
+      // Commit whatever we have right now
+      const sessionFinal = (recognition as any)._sessionFinal || '';
+      const committed = ((recognition as any)._committedText || '') + sessionFinal;
+      transcriptRef.current = committed.trim();
+      originalStop();
+    };
+
+    // Initialize tracking
+    (recognition as any)._committedText = '';
+    (recognition as any)._sessionFinal = '';
+
+    recognition.start();
+    return recognition;
+  }, []);
+
   const startTabRecording = async () => {
     try {
       setTranscript('');
+      transcriptRef.current = '';
       setAudioChunks([]);
       setRecordedAudioBlob(null);
 
@@ -237,8 +358,13 @@ export function Meetings() {
         recorder.start(1000);
         setMediaRecorder(recorder);
 
-        // No Web Speech API here – it cannot consume an arbitrary audio stream.
-        // Transcript stays empty; the raw audio blob is saved instead.
+        // Start live transcription via Web Speech API (uses mic to hear what's playing)
+        const recognition = startSpeechRecognition();
+        if (recognition) {
+          setSpeechRecognition(recognition);
+          speechRecRef.current = recognition;
+          console.log('✅ Web Speech API started for tab transcription');
+        }
 
       } else {
         // ── Microphone: record the user's voice + live transcription via Web Speech API ──
@@ -256,30 +382,11 @@ export function Meetings() {
         recorder.start(1000);
         setMediaRecorder(recorder);
 
-        // Real-time transcription with Web Speech API (works with mic input)
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (SpeechRecognition) {
-          const recognition = new SpeechRecognition();
-          recognition.continuous = true;
-          recognition.interimResults = true;
-          recognition.lang = 'en-US';
-          recognition.maxAlternatives = 1;
-
-          let finalT = '';
-          let interimT = '';
-          recognition.onresult = (event: any) => {
-            interimT = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-              const seg = event.results[i][0].transcript;
-              if (event.results[i].isFinal) { finalT += seg + ' '; } else { interimT += seg; }
-            }
-            setTranscript(finalT + interimT);
-          };
-          recognition.onerror = (event: any) => { console.warn('⚠️ Speech recognition error:', event.error); };
-          recognition.onend = () => { try { recognition.start(); } catch (_) {} };
-
-          recognition.start();
+        // Start live transcription
+        const recognition = startSpeechRecognition();
+        if (recognition) {
           setSpeechRecognition(recognition);
+          speechRecRef.current = recognition;
           console.log('✅ Web Speech API started');
         }
       }
@@ -307,19 +414,26 @@ export function Meetings() {
       setRecordingStep('processing');
       setProcessingRecording(true);
 
-      if (speechRecognition) { speechRecognition.stop(); setSpeechRecognition(null); }
+      // Stop speech recognition first so it commits final text to the ref
+      const recog = speechRecRef.current || speechRecognition;
+      if (recog) { recog.stop(); setSpeechRecognition(null); speechRecRef.current = null; }
       if (mediaRecorder && mediaRecorder.state !== 'inactive') { mediaRecorder.stop(); }
       if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); setMediaStream(null); }
 
-      await new Promise(r => setTimeout(r, 500));
+      // Small delay for final state updates
+      await new Promise(r => setTimeout(r, 300));
 
-      const finalTranscript = transcript?.trim() || '';
+      // Read from ref (always current) — never from stale React state
+      const finalTranscript = transcriptRef.current?.trim() || transcript?.trim() || '';
+      console.log('📝 Final transcript length:', finalTranscript.length, 'chars');
       const isMic = selectedSource === 'microphone';
+      const isTab = selectedSource === 'tab';
       const sourceLabel = isMic ? 'Voice Recording' : 'Tab Recording';
       const now = new Date();
       const title = recordingTitle || `${sourceLabel} - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
 
-      await meetingsAPI.create({
+      // Create the meeting record (both modes now have transcripts via Web Speech API)
+      const meetingData = await meetingsAPI.create({
         title,
         date: now.toISOString().split('T')[0],
         time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
@@ -328,20 +442,36 @@ export function Meetings() {
         summary: finalTranscript
           ? finalTranscript.substring(0, 200) + (finalTranscript.length > 200 ? '...' : '')
           : `${sourceLabel} – ${Math.ceil(recordingTime / 60)} min captured.`,
-        transcript: finalTranscript || (isMic
-          ? '[No speech detected during recording.]'
-          : '[Tab audio captured. Live transcription is available only in Microphone mode.]'),
+        transcript: finalTranscript || '[No speech detected during recording.]',
         location: sourceLabel,
         recording_url: null,
         user_id: user?.id,
       }, []);
 
+      // For tab recordings: also upload the raw audio blob to Supabase Storage
+      if (isTab && meetingData?.id && user) {
+        const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
+
+        if (finalBlob.size > 0) {
+          try {
+            console.log('📤 Uploading tab audio blob...', (finalBlob.size / 1024 / 1024).toFixed(2), 'MB');
+            const recordingUrl = await recordingsAPI.uploadAudio(finalBlob, user.id, meetingData.id);
+            console.log('✅ Audio uploaded:', recordingUrl);
+            await meetingsAPI.update(meetingData.id, { recording_url: recordingUrl }, user.id);
+          } catch (uploadErr: any) {
+            console.error('⚠️ Audio upload failed (meeting saved without recording):', uploadErr);
+          }
+        }
+      }
+
       console.log('✅ Saved!');
       await fetchMeetings();
 
       setTimeout(() => {
-        setTranscript(''); setRecordingTitle(''); setRecordingTime(0);
+        setTranscript(''); transcriptRef.current = '';
+        setRecordingTitle(''); setRecordingTime(0);
         setShowRecordingModal(false); setRecordingStep('select');
+        setAudioChunks([]);
       }, 2000);
 
     } catch (error: any) {
@@ -352,9 +482,11 @@ export function Meetings() {
   };
 
   const cancelRecording = () => {
-    if (speechRecognition) {
-      speechRecognition.stop();
+    const recog = speechRecRef.current || speechRecognition;
+    if (recog) {
+      recog.stop();
       setSpeechRecognition(null);
+      speechRecRef.current = null;
     }
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.stop();
@@ -365,6 +497,7 @@ export function Meetings() {
     
     setIsRecording(false);
     setTranscript('');
+    transcriptRef.current = '';
     setRecordingTitle('');
     setRecordingTime(0);
     setShowRecordingModal(false);
@@ -574,7 +707,16 @@ export function Meetings() {
                       {meeting.status === 'processing' && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 flex items-center gap-1">
                           <Loader2 className="w-3 h-3 animate-spin" />
-                          Processing
+                          {meeting.ai_processing_status === 'analyzing'
+                            ? 'AI Analyzing...'
+                            : meeting.ai_processing_status === 'queued'
+                            ? 'Queued'
+                            : 'Processing'}
+                        </span>
+                      )}
+                      {meeting.ai_processing_status === 'failed' && meeting.status !== 'processing' && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+                          AI Failed
                         </span>
                       )}
                       {meeting.status === 'scheduled' && (
@@ -591,7 +733,15 @@ export function Meetings() {
                         {meeting.time} • {meeting.duration}
                       </span>
                     </div>
-                    {/* AI Summary preview for completed meetings */}
+                    {/* AI Summary preview / Processing status */}
+                    {meeting.status === 'processing' && (
+                      <p className={`text-xs mt-1.5 flex items-center gap-1.5 ${theme === 'dark' ? 'text-amber-400/80' : 'text-amber-600'}`}>
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        {meeting.ai_processing_status === 'analyzing'
+                          ? 'Claude is analyzing the transcript...'
+                          : 'AI processing in progress...'}
+                      </p>
+                    )}
                     {meeting.status === 'completed' && meeting.summary && (
                       <p className={`text-xs mt-1.5 line-clamp-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                         {meeting.summary}
@@ -651,6 +801,7 @@ export function Meetings() {
       </motion.div>
 
       {/* New Meeting Modal */}
+      {createPortal(
       <AnimatePresence>
         {showNewMeetingModal && (
           <motion.div
@@ -807,9 +958,12 @@ export function Meetings() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+      )}
 
       {/* Tab Recording Modal */}
+      {createPortal(
       <AnimatePresence>
         {showRecordingModal && (
           <motion.div
@@ -960,8 +1114,8 @@ export function Meetings() {
                     <li>Make sure <strong>"Share tab audio"</strong> is checked</li>
                     <li>Audio is captured directly from the tab's stream — no microphone needed</li>
                   </ol>
-                  <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-yellow-400/80' : 'text-amber-600'}`}>
-                    Note: Live transcription is not available in Tab mode. The raw audio is saved.
+                  <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-blue-400/80' : 'text-blue-600'}`}>
+                    Live transcription uses your microphone to capture speech while tab audio is recorded separately.
                   </p>
                 </motion.div>
               )}
@@ -1039,7 +1193,7 @@ export function Meetings() {
                       <p className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
                         {isRecording
                           ? selectedSource === 'tab'
-                            ? 'Capturing tab audio... The audio stream is being recorded directly.'
+                            ? 'Capturing tab audio + live transcription via microphone...'
                             : 'Listening... Speak into your microphone. Transcript will appear here.'
                           : selectedSource === 'tab'
                             ? 'Select a browser tab to capture its audio output.'
@@ -1127,7 +1281,9 @@ export function Meetings() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+      )}
     </div>
   );
 }

@@ -197,8 +197,11 @@ app.post("/calendar/events", async (c) => {
 
 // Trigger AI pipeline for meeting analysis
 app.post("/ai/analyze-meeting", async (c) => {
+  let meeting_id: string | undefined;
   try {
-    const { meeting_id, user_id } = await c.req.json();
+    const body = await c.req.json();
+    meeting_id = body.meeting_id;
+    const user_id = body.user_id;
     
     if (!meeting_id || !user_id) {
       return c.json({ error: "Missing required parameters" }, 400);
@@ -221,25 +224,57 @@ app.post("/ai/analyze-meeting", async (c) => {
     // Update meeting status
     await supabase
       .from('meetings')
-      .update({ ai_processing_status: 'transcribing' })
+      .update({ ai_processing_status: 'analyzing', status: 'processing' })
       .eq('id', meeting_id);
 
-    // Get live transcript data
-    const { data: liveData } = await supabase
-      .from('live_meetings')
-      .select('live_transcript_chunk')
-      .eq('meeting_id', meeting_id)
-      .maybeSingle();
+    // ── Obtain transcript ──
+    // 1. Check if meeting already has a transcript (from Web Speech API)
+    const { data: meetingData } = await supabase
+      .from('meetings')
+      .select('transcript, recording_url')
+      .eq('id', meeting_id)
+      .single();
 
-    const rawTranscript = liveData?.live_transcript_chunk || '';
+    let rawTranscript = meetingData?.transcript || '';
 
-    // Update status to analyzing
+    // 2. Fallback: check live_meetings table
+    if (!rawTranscript || rawTranscript.startsWith('[')) {
+      const { data: liveData } = await supabase
+        .from('live_meetings')
+        .select('live_transcript_chunk')
+        .eq('meeting_id', meeting_id)
+        .maybeSingle();
+
+      if (liveData?.live_transcript_chunk) {
+        rawTranscript = liveData.live_transcript_chunk;
+      }
+    }
+
+    // If no transcript at all, mark complete gracefully
+    if (!rawTranscript || rawTranscript.startsWith('[')) {
+      await supabase.from('meetings').update({
+        ai_processing_status: 'complete',
+        status: 'completed',
+        ai_processed: true,
+        transcript: rawTranscript || '[No transcript available. Ensure speech was detected during recording.]',
+        summary: 'No speech was detected in this recording. Try recording again with clearer audio.',
+      }).eq('id', meeting_id);
+
+      await supabase.from('ai_processing_jobs').update({
+        status: 'complete',
+        completed_at: new Date().toISOString(),
+        output_data: { summary: 'No transcript available', action_items_count: 0 },
+      }).eq('meeting_id', meeting_id);
+
+      return c.json({ success: true, analysis: { summary: 'No transcript available', action_items_count: 0, sentiment: 'neutral' } });
+    }
+
+    // ── Analyze with Claude ──
     await supabase
       .from('meetings')
       .update({ ai_processing_status: 'analyzing' })
       .eq('id', meeting_id);
 
-    // Call Claude API for analysis
     const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY') || '';
     let analysis: any = {
       summary: 'AI analysis completed.',
@@ -291,7 +326,7 @@ ${rawTranscript}`,
       }
     }
 
-    // Write analysis results to database
+    // ── Write results to database ──
     await supabase.from('meetings').update({
       summary: analysis.summary,
       transcript: rawTranscript,
@@ -300,6 +335,7 @@ ${rawTranscript}`,
       sentiment: analysis.sentiment,
       ai_processed: true,
       ai_processing_status: 'complete',
+      status: 'completed',
     }).eq('id', meeting_id);
 
     // Create action items
@@ -371,21 +407,27 @@ ${rawTranscript}`,
   } catch (err: any) {
     console.error('AI analysis error:', err);
     
-    // Update job status to failed
     if (meeting_id) {
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL') || '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-      );
-      
-      await supabase
-        .from('ai_processing_jobs')
-        .update({
-          status: 'failed',
-          error_message: err.message,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('meeting_id', meeting_id);
+      try {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL') || '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+        );
+        
+        await supabase
+          .from('ai_processing_jobs')
+          .update({
+            status: 'failed',
+            error_message: err.message,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('meeting_id', meeting_id);
+
+        await supabase
+          .from('meetings')
+          .update({ ai_processing_status: 'failed', status: 'completed' })
+          .eq('id', meeting_id);
+      } catch (_) { /* best effort */ }
     }
     
     return c.json({ error: err.message }, 500);

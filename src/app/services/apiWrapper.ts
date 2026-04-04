@@ -410,6 +410,18 @@ export const exportAPI = {
   },
 };
 
+// ==================== RECORDINGS ====================
+
+export const recordingsAPI = {
+  async uploadAudio(blob: Blob, userId: string, meetingId: string): Promise<string> {
+    if (useLocalStorage) {
+      // In local mode, create a local object URL as a placeholder
+      return URL.createObjectURL(blob);
+    }
+    return supabaseAPI.recordingsAPI.uploadAudio(blob, userId, meetingId);
+  },
+};
+
 // Helper to get current user ID
 export const getCurrentUserId = () => getUserId();
 

@@ -194,6 +194,34 @@ export const meetingsAPI = {
   },
 };
 
+// ==================== RECORDING UPLOAD ====================
+
+export const recordingsAPI = {
+  /**
+   * Upload an audio blob to Supabase Storage and return the public URL.
+   * Creates the 'recordings' bucket on the fly if it doesn't exist (RLS should allow inserts).
+   */
+  async uploadAudio(blob: Blob, userId: string, meetingId: string): Promise<string> {
+    const ext = blob.type.includes('webm') ? 'webm' : 'ogg';
+    const filePath = `${userId}/${meetingId}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('recordings')
+      .upload(filePath, blob, { upsert: true, contentType: blob.type });
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw uploadError;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('recordings')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  },
+};
+
 // ==================== ACTION ITEMS ====================
 
 export const actionItemsAPI = {

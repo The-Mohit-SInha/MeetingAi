@@ -57,7 +57,7 @@ export interface Database {
           date: string;
           time: string;
           duration: string;
-          status: 'completed' | 'in-progress' | 'scheduled';
+          status: 'completed' | 'in-progress' | 'scheduled' | 'processing';
           summary: string | null;
           transcript: string | null;
           location: string | null;
