@@ -23,7 +23,6 @@ import { Login } from "./components/Login";
 import { Signup } from "./components/Signup";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthCallback } from "./components/AuthCallback";
-import { GoogleMeetCallback } from "./components/GoogleMeetCallback";
 import {
   isSupabaseConfigured,
   supabase,
@@ -133,7 +132,6 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/auth/google-meet/callback" element={<GoogleMeetCallback />} />
             <Route
               path="/"
               element={

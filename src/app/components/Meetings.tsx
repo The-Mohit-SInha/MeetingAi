@@ -28,8 +28,9 @@ import { useAuth } from "../context/AuthContext";
 import { useLiveMeeting } from "../context/LiveMeetingContext";
 import { meetingsAPI } from "../services/apiWrapper";
 import { recordingsAPI } from "../services/apiWrapper";
-import { googleMeetOAuth, aiProcessingService } from "../services/googleMeetService";
+import { aiProcessingService } from "../services/googleMeetService";
 import { supabase } from "../../lib/supabase";
+import { transcribeAudioBlob } from "../services/localTranscriptionService";
 
 export function Meetings() {
   const { theme, compactMode } = useTheme();
@@ -41,7 +42,6 @@ export function Meetings() {
   const [showNewMeetingModal, setShowNewMeetingModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [meetings, setMeetings] = useState<any[]>([]);
-  const [googleMeetConnected, setGoogleMeetConnected] = useState(false);
   const [stats, setStats] = useState({
     totalMeetings: 0,
     thisWeek: 0,
@@ -68,6 +68,7 @@ export function Meetings() {
   const [speechRecognition, setSpeechRecognition] = useState<any>(null);
   const [recordingTitle, setRecordingTitle] = useState("");
   const [processingRecording, setProcessingRecording] = useState(false);
+  const [transcriptionProgress, setTranscriptionProgress] = useState<string>('');
   const [selectedSource, setSelectedSource] = useState<'tab' | 'microphone'>('tab');
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
@@ -76,10 +77,10 @@ export function Meetings() {
   const transcriptRef = useRef('');
   const speechRecRef = useRef<any>(null);
 
+
   useEffect(() => {
     if (user) {
       fetchMeetings();
-      googleMeetOAuth.getConnectionStatus(user.id).then(s => setGoogleMeetConnected(s?.google_meet_connected || false));
     }
   }, [user]);
 
@@ -324,7 +325,7 @@ export function Meetings() {
       setRecordedAudioBlob(null);
 
       if (selectedSource === 'tab') {
-        // ── Tab Audio: capture directly from the browser tab via getDisplayMedia ──
+        // ── Tab Audio: pure screencast capture — no microphone needed ──
         console.log('🖥️ Starting tab audio capture via getDisplayMedia...');
         const displayStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
@@ -346,7 +347,7 @@ export function Meetings() {
           stopTabRecording();
         });
 
-        // Record the tab's audio stream directly (no mic needed)
+        // Record the tab's audio stream directly (screencast style — no mic)
         const audioOnlyStream = new MediaStream(audioTracks);
         const recorder = new MediaRecorder(audioOnlyStream, {
           mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -358,13 +359,10 @@ export function Meetings() {
         recorder.start(1000);
         setMediaRecorder(recorder);
 
-        // Start live transcription via Web Speech API (uses mic to hear what's playing)
-        const recognition = startSpeechRecognition();
-        if (recognition) {
-          setSpeechRecognition(recognition);
-          speechRecRef.current = recognition;
-          console.log('✅ Web Speech API started for tab transcription');
-        }
+        // No live transcription for tab mode — audio is captured directly from the
+        // tab stream (screencast style). Transcription happens server-side after
+        // recording via OpenAI Whisper API on the edge function.
+        console.log('📼 Tab recording started (screencast mode — transcription happens after recording)');
 
       } else {
         // ── Microphone: record the user's voice + live transcription via Web Speech API ──
@@ -414,7 +412,7 @@ export function Meetings() {
       setRecordingStep('processing');
       setProcessingRecording(true);
 
-      // Stop speech recognition first so it commits final text to the ref
+      // Stop speech recognition (only active in mic mode)
       const recog = speechRecRef.current || speechRecognition;
       if (recog) { recog.stop(); setSpeechRecognition(null); speechRecRef.current = null; }
       if (mediaRecorder && mediaRecorder.state !== 'inactive') { mediaRecorder.stop(); }
@@ -423,16 +421,42 @@ export function Meetings() {
       // Small delay for final state updates
       await new Promise(r => setTimeout(r, 300));
 
-      // Read from ref (always current) — never from stale React state
-      const finalTranscript = transcriptRef.current?.trim() || transcript?.trim() || '';
-      console.log('📝 Final transcript length:', finalTranscript.length, 'chars');
       const isMic = selectedSource === 'microphone';
       const isTab = selectedSource === 'tab';
       const sourceLabel = isMic ? 'Voice Recording' : 'Tab Recording';
       const now = new Date();
       const title = recordingTitle || `${sourceLabel} - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
 
-      // Create the meeting record (both modes now have transcripts via Web Speech API)
+      // For mic mode: read transcript from ref.
+      // For tab mode: transcribe locally using Whisper in the browser.
+      let finalTranscript = '';
+      if (isMic) {
+        finalTranscript = transcriptRef.current?.trim() || transcript?.trim() || '';
+      } else if (isTab) {
+        const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        if (finalBlob.size > 0) {
+          try {
+            setTranscriptionProgress('Loading AI model (first time may take a moment)...');
+            finalTranscript = await transcribeAudioBlob(
+              finalBlob,
+              (progress) => {
+                setTranscriptionProgress(`Downloading model: ${Math.round(progress * 100)}%`);
+              },
+              (loading) => {
+                if (!loading) setTranscriptionProgress('Transcribing audio...');
+              },
+            );
+            setTranscriptionProgress('');
+            setTranscript(finalTranscript);
+          } catch (transcribeErr: any) {
+            console.error('⚠️ Local transcription failed:', transcribeErr);
+            setTranscriptionProgress('');
+            finalTranscript = '';
+          }
+        }
+      }
+      console.log('📝 Final transcript length:', finalTranscript.length, 'chars');
+
       const meetingData = await meetingsAPI.create({
         title,
         date: now.toISOString().split('T')[0],
@@ -451,7 +475,6 @@ export function Meetings() {
       // For tab recordings: also upload the raw audio blob to Supabase Storage
       if (isTab && meetingData?.id && user) {
         const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
-
         if (finalBlob.size > 0) {
           try {
             console.log('📤 Uploading tab audio blob...', (finalBlob.size / 1024 / 1024).toFixed(2), 'MB');
@@ -464,6 +487,16 @@ export function Meetings() {
         }
       }
 
+      // Trigger AI analysis if we have a transcript
+      if (finalTranscript && meetingData?.id && user) {
+        try {
+          console.log('🤖 Triggering AI analysis...');
+          await aiProcessingService.triggerAnalysis(meetingData.id, user.id);
+        } catch (analysisErr: any) {
+          console.warn('⚠️ AI analysis trigger failed:', analysisErr);
+        }
+      }
+
       console.log('✅ Saved!');
       await fetchMeetings();
 
@@ -471,7 +504,7 @@ export function Meetings() {
         setTranscript(''); transcriptRef.current = '';
         setRecordingTitle(''); setRecordingTime(0);
         setShowRecordingModal(false); setRecordingStep('select');
-        setAudioChunks([]);
+        setAudioChunks([]); setTranscriptionProgress('');
       }, 2000);
 
     } catch (error: any) {
@@ -1115,7 +1148,7 @@ export function Meetings() {
                     <li>Audio is captured directly from the tab's stream — no microphone needed</li>
                   </ol>
                   <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-blue-400/80' : 'text-blue-600'}`}>
-                    Live transcription uses your microphone to capture speech while tab audio is recorded separately.
+                    Audio is captured directly from the tab — no microphone needed. Transcription runs locally in your browser after recording (free, powered by Whisper AI).
                   </p>
                 </motion.div>
               )}
@@ -1193,7 +1226,7 @@ export function Meetings() {
                       <p className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
                         {isRecording
                           ? selectedSource === 'tab'
-                            ? 'Capturing tab audio + live transcription via microphone...'
+                            ? 'Recording tab audio directly... Transcription runs locally after you stop.'
                             : 'Listening... Speak into your microphone. Transcript will appear here.'
                           : selectedSource === 'tab'
                             ? 'Select a browser tab to capture its audio output.'
@@ -1274,7 +1307,7 @@ export function Meetings() {
                 >
                   <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                   <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Processing and saving your recording...
+                    {transcriptionProgress || 'Processing and saving your recording...'}
                   </p>
                 </motion.div>
               )}

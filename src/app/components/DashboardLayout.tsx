@@ -20,8 +20,6 @@ import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { useLiveMeeting } from "../context/LiveMeetingContext";
 import { userAPI } from "../services/apiWrapper";
-import { GoogleMeetOnboardingModal } from "./GoogleMeetOnboarding";
-import { LiveMeetingBanner } from "./LiveMeetingBanner";
 
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
@@ -39,7 +37,6 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const { liveMeeting, elapsedSeconds, showPanel, setShowPanel } = useLiveMeeting();
   const [userProfile, setUserProfile] = useState<any>(null);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -66,11 +63,6 @@ export function DashboardLayout() {
     };
 
     fetchUserProfile();
-
-    const hasSeenOnboarding = localStorage.getItem('gmeet_onboarding_done');
-    if (!hasSeenOnboarding) {
-      setShowOnboarding(true);
-    }
   }, [user]);
 
   const isActive = (href: string) => {
@@ -247,13 +239,12 @@ export function DashboardLayout() {
               whileHover={{ scale: 1.1 }}
               onClick={async () => {
                 try {
-                  console.log('🚪 Logging out...');
+                  console.log('Logging out...');
                   await signOut();
-                  console.log('✅ Signed out successfully, navigating to login...');
+                  console.log('Signed out successfully, navigating to login...');
                   navigate('/login');
                 } catch (error) {
-                  console.error('❌ Logout error:', error);
-                  // Force navigation even if signOut fails
+                  console.error('Logout error:', error);
                   navigate('/login');
                 }
               }}
@@ -297,7 +288,6 @@ export function DashboardLayout() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    {/* AI Capturing with equalizer bars */}
                     <div className="flex items-center gap-2">
                       <div className="flex items-end gap-0.5 h-4">
                         {[1, 2, 3, 4, 5].map((i) => (
@@ -333,15 +323,6 @@ export function DashboardLayout() {
           <Outlet />
         </motion.div>
       </motion.div>
-
-      {/* Google Meet Onboarding Modal */}
-      <GoogleMeetOnboardingModal
-        open={showOnboarding}
-        onClose={() => {
-          setShowOnboarding(false);
-          localStorage.setItem('gmeet_onboarding_done', 'true');
-        }}
-      />
     </div>
   );
 }

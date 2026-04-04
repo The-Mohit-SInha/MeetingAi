@@ -3,7 +3,7 @@ import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { settingsAPI } from "../services/apiWrapper";
 import { isSupabaseConfigured } from "../../lib/supabase";
-import { googleMeetOAuth } from "../services/googleMeetService";
+
 import { motion } from "motion/react";
 import { 
   User, 
@@ -68,13 +68,7 @@ export function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isDbConfigured, setIsDbConfigured] = useState(false);
-  const [googleMeetConnected, setGoogleMeetConnected] = useState(false);
-  const [meetSettings, setMeetSettings] = useState<any>(null);
-  const [gmeetSettings, setGmeetSettings] = useState({
-    autoJoin: true,
-    captureVideo: false,
-    captureChat: true,
-  });
+
   const [settings, setSettings] = useState({
     // Account
     autoSave: true,
@@ -102,17 +96,7 @@ export function Settings() {
   useEffect(() => {
     if (user) {
       fetchSettings();
-      googleMeetOAuth.getConnectionStatus(user.id).then(data => {
-        setMeetSettings(data);
-        setGoogleMeetConnected(data?.google_meet_connected || false);
-        if (data) {
-          setGmeetSettings({
-            autoJoin: data.google_meet_auto_join ?? true,
-            captureVideo: data.google_meet_capture_video ?? false,
-            captureChat: data.google_meet_capture_chat ?? true,
-          });
-        }
-      }).catch(() => {});
+
     }
     setIsDbConfigured(isSupabaseConfigured());
   }, [user]);
@@ -592,102 +576,7 @@ export function Settings() {
                 <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Connect Meeting AI with your favorite tools</p>
               </div>
 
-              {/* Google Meet - Featured Card */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`p-5 rounded-xl border-2 ${
-                  googleMeetConnected
-                    ? 'border-green-300 dark:border-green-700 bg-gradient-to-r from-green-50/80 to-emerald-50/80 dark:from-green-900/20 dark:to-emerald-900/20'
-                    : `${theme === 'dark' ? 'border-gray-700 bg-gray-800/60' : 'border-gray-200 bg-white/60'}`
-                }`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <Video className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <p className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Google Meet</p>
-                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Auto-capture meetings with AI</p>
-                    </div>
-                  </div>
-                  {googleMeetConnected ? (
-                    <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 text-sm font-semibold rounded-full">
-                      Connected
-                    </span>
-                  ) : (
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => {
-                        // Trigger actual Google OAuth flow
-                        const authUrl = googleMeetOAuth.getAuthUrl();
-                        window.location.href = authUrl;
-                      }}
-                      className="px-5 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg shadow-lg"
-                    >
-                      Connect
-                    </motion.button>
-                  )}
-                </div>
-
-                {googleMeetConnected && (
-                  <div className="space-y-3 mt-4">
-                    <div className={`flex items-center justify-between text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                      <span>Account: {meetSettings?.google_meet_email || user?.email || 'user@example.com'}</span>
-                      <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Connected</span>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        if (user) {
-                          await googleMeetOAuth.disconnect(user.id);
-                          setGoogleMeetConnected(false);
-                          setMeetSettings(null);
-                        }
-                      }}
-                      className="text-sm text-red-500 hover:text-red-600 font-medium"
-                    >
-                      Disconnect
-                    </button>
-
-                    <div className={`border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} pt-3 space-y-2`}>
-                      {[
-                        { key: 'autoJoin' as const, label: 'Auto-join meetings' },
-                        { key: 'captureVideo' as const, label: 'Capture video' },
-                        { key: 'captureChat' as const, label: 'Capture chat' },
-                      ].map((toggle) => (
-                        <div key={toggle.key} className="flex items-center justify-between">
-                          <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>{toggle.label}</span>
-                          <button
-                            onClick={async () => {
-                              const newValue = !gmeetSettings[toggle.key];
-                              setGmeetSettings(p => ({ ...p, [toggle.key]: newValue }));
-                              if (user) {
-                                const prefs: any = {};
-                                if (toggle.key === 'autoJoin') prefs.auto_join = newValue;
-                                if (toggle.key === 'captureVideo') prefs.capture_video = newValue;
-                                if (toggle.key === 'captureChat') prefs.capture_chat = newValue;
-                                await googleMeetOAuth.updatePreferences(user.id, prefs);
-                              }
-                            }}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${
-                              gmeetSettings[toggle.key] ? 'bg-gradient-to-r from-blue-500 to-purple-600' : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'
-                            }`}
-                          >
-                            <motion.div
-                              animate={{ x: gmeetSettings[toggle.key] ? 22 : 2 }}
-                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow"
-                            />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-
-              {/* Other integrations */}
+              {/* Integrations */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
                   { name: "Slack", desc: "Sync notifications", icon: "💬", connected: true, color: "purple" },
