@@ -1,0 +1,1007 @@
+Let me re-read the codebase thoroughly before writing the implementation prompt.Now I have a complete picture of every file, every service, every component, every type, and every existing pattern. Here is the full implementation prompt:
+
+---
+
+> **Figma Make Prompt — Full System Architecture Implementation**
+>
+> I have an existing AI meeting dashboard built in React + TypeScript + Tailwind CSS + Supabase. The design uses glassmorphism (cream gradient background, `rgba(255,255,255,0.4)` glass cards, pill nav, `bg-gray-900` active state, purple/blue gradient accents, `motion` from `motion/react` for all animations). All components use `useAuth()` for user context and `useTheme()` for dark mode. All data goes through `src/app/services/apiWrapper.ts` which routes to either Supabase (`src/app/services/api.ts`) or localStorage (`src/app/services/localAPI.ts`) depending on whether Supabase is configured. I need you to implement the full Google Meet AI capture pipeline across the entire codebase. Here is every change required, file by file.
+>
+> ---
+>
+> **PART 1 — DATABASE SCHEMA ADDITIONS**
+>
+> Add a new file `supabase/migrations/20260403000000_google_meet_ai.sql` with this exact content:
+>
+> ```sql
+> -- Google Meet AI System Schema Extension
+>
+> -- Add Google Meet fields to meetings table
+> ALTER TABLE meetings ADD COLUMN IF NOT EXISTS google_meet_id TEXT;
+> ALTER TABLE meetings ADD COLUMN IF NOT EXISTS google_meet_url TEXT;
+> ALTER TABLE meetings ADD COLUMN IF NOT EXISTS ai_processed BOOLEAN DEFAULT FALSE;
+> ALTER TABLE meetings ADD COLUMN IF NOT EXISTS ai_processing_status TEXT DEFAULT 'none'
+>   CHECK (ai_processing_status IN ('none','queued','capturing','transcribing','analyzing','complete','failed'));
+> ALTER TABLE meetings ADD COLUMN IF NOT EXISTS video_insights JSONB;
+> ALTER TABLE meetings ADD COLUMN IF NOT EXISTS key_decisions JSONB;
+> ALTER TABLE meetings ADD COLUMN IF NOT EXISTS meeting_highlights JSONB;
+> ALTER TABLE meetings ADD COLUMN IF NOT EXISTS sentiment TEXT DEFAULT 'neutral'
+>   CHECK (sentiment IN ('positive','neutral','negative'));
+>
+> -- Add Google Meet OAuth to user_settings
+> ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS google_meet_connected BOOLEAN DEFAULT FALSE;
+> ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS google_meet_email TEXT;
+> ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS google_meet_access_token TEXT;
+> ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS google_meet_refresh_token TEXT;
+> ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS google_meet_auto_join BOOLEAN DEFAULT TRUE;
+> ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS google_meet_capture_video BOOLEAN DEFAULT TRUE;
+> ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS google_meet_capture_chat BOOLEAN DEFAULT TRUE;
+>
+> -- Add AI enrichment fields to meeting_participants
+> ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS speaking_time_seconds INTEGER DEFAULT 0;
+> ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS word_count INTEGER DEFAULT 0;
+> ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS sentiment TEXT DEFAULT 'neutral'
+>   CHECK (sentiment IN ('positive','neutral','negative'));
+> ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS contribution_score FLOAT DEFAULT 0;
+> ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS tasks_assigned INTEGER DEFAULT 0;
+> ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS joined_at TIMESTAMPTZ;
+> ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS left_at TIMESTAMPTZ;
+>
+> -- Live meeting state table
+> CREATE TABLE IF NOT EXISTS live_meetings (
+>   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+>   meeting_id UUID REFERENCES meetings(id) ON DELETE CASCADE,
+>   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+>   google_meet_id TEXT NOT NULL,
+>   started_at TIMESTAMPTZ DEFAULT NOW(),
+>   bot_joined BOOLEAN DEFAULT FALSE,
+>   capture_active BOOLEAN DEFAULT FALSE,
+>   current_speaker TEXT,
+>   live_transcript_chunk TEXT,
+>   updated_at TIMESTAMPTZ DEFAULT NOW()
+> );
+> ALTER TABLE live_meetings ENABLE ROW LEVEL SECURITY;
+> CREATE POLICY "Users access own live meetings" ON live_meetings
+>   USING (auth.uid() = user_id);
+>
+> -- AI processing jobs table
+> CREATE TABLE IF NOT EXISTS ai_processing_jobs (
+>   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+>   meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+>   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+>   job_type TEXT NOT NULL CHECK (job_type IN ('transcribe','analyze','extract_actions','participant_stats','full_pipeline')),
+>   status TEXT DEFAULT 'queued' CHECK (status IN ('queued','running','complete','failed')),
+>   input_data JSONB,
+>   output_data JSONB,
+>   error_message TEXT,
+>   started_at TIMESTAMPTZ,
+>   completed_at TIMESTAMPTZ,
+>   created_at TIMESTAMPTZ DEFAULT NOW()
+> );
+> ALTER TABLE ai_processing_jobs ENABLE ROW LEVEL SECURITY;
+> CREATE POLICY "Users access own jobs" ON ai_processing_jobs
+>   USING (auth.uid() = user_id);
+> CREATE INDEX idx_ai_jobs_meeting ON ai_processing_jobs(meeting_id);
+> CREATE INDEX idx_ai_jobs_status ON ai_processing_jobs(status);
+> ```
+>
+> ---
+>
+> **PART 2 — UPDATE `src/lib/supabase.ts`**
+>
+> Add these new types to the `Database` interface, inside `public.Tables`:
+>
+> ```typescript
+> live_meetings: {
+>   Row: {
+>     id: string; meeting_id: string; user_id: string;
+>     google_meet_id: string; started_at: string;
+>     bot_joined: boolean; capture_active: boolean;
+>     current_speaker: string | null; live_transcript_chunk: string | null;
+>     updated_at: string;
+>   };
+>   Insert: Omit<Database['public']['Tables']['live_meetings']['Row'], 'id' | 'started_at' | 'updated_at'>;
+>   Update: Partial<Database['public']['Tables']['live_meetings']['Insert']>;
+> };
+> ai_processing_jobs: {
+>   Row: {
+>     id: string; meeting_id: string; user_id: string;
+>     job_type: 'transcribe' | 'analyze' | 'extract_actions' | 'participant_stats' | 'full_pipeline';
+>     status: 'queued' | 'running' | 'complete' | 'failed';
+>     input_data: any; output_data: any; error_message: string | null;
+>     started_at: string | null; completed_at: string | null; created_at: string;
+>   };
+>   Insert: Omit<Database['public']['Tables']['ai_processing_jobs']['Row'], 'id' | 'created_at'>;
+>   Update: Partial<Database['public']['Tables']['ai_processing_jobs']['Insert']>;
+> };
+> ```
+>
+> Also extend `user_settings.Row` to include: `google_meet_connected: boolean`, `google_meet_email: string | null`, `google_meet_access_token: string | null`, `google_meet_refresh_token: string | null`, `google_meet_auto_join: boolean`, `google_meet_capture_video: boolean`, `google_meet_capture_chat: boolean`.
+>
+> Also extend `meetings.Row` to include: `google_meet_id: string | null`, `google_meet_url: string | null`, `ai_processed: boolean`, `ai_processing_status: string`, `video_insights: any`, `key_decisions: any`, `meeting_highlights: any`, `sentiment: string`.
+>
+> Also extend `meeting_participants.Row` to include: `speaking_time_seconds: number`, `word_count: number`, `sentiment: string`, `contribution_score: number`, `tasks_assigned: number`, `joined_at: string | null`, `left_at: string | null`.
+>
+> ---
+>
+> **PART 3 — NEW FILE `src/app/services/googleMeetService.ts`**
+>
+> Create this file with the following complete implementation. This is the core service that handles all Google Meet OAuth, bot control, and AI pipeline triggering:
+>
+> ```typescript
+> import { supabase } from '../../lib/supabase';
+>
+> const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+> const GOOGLE_SCOPES = [
+>   'https://www.googleapis.com/auth/meetings.space.readonly',
+>   'https://www.googleapis.com/auth/calendar.readonly',
+>   'openid', 'email', 'profile'
+> ].join(' ');
+>
+> // ==================== OAUTH ====================
+>
+> export const googleMeetOAuth = {
+>   getAuthUrl(): string {
+>     const params = new URLSearchParams({
+>       client_id: GOOGLE_CLIENT_ID,
+>       redirect_uri: `${window.location.origin}/auth/google-meet/callback`,
+>       response_type: 'code',
+>       scope: GOOGLE_SCOPES,
+>       access_type: 'offline',
+>       prompt: 'consent',
+>       state: crypto.randomUUID(),
+>     });
+>     return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+>   },
+>
+>   async exchangeCode(code: string, userId: string): Promise<void> {
+>     // Exchange code via Supabase Edge Function
+>     const { data, error } = await supabase.functions.invoke('google-meet-oauth', {
+>       body: { code, redirect_uri: `${window.location.origin}/auth/google-meet/callback` }
+>     });
+>     if (error) throw error;
+>     // Save tokens to user_settings
+>     await supabase.from('user_settings').update({
+>       google_meet_connected: true,
+>       google_meet_email: data.email,
+>       google_meet_access_token: data.access_token,
+>       google_meet_refresh_token: data.refresh_token,
+>     }).eq('user_id', userId);
+>   },
+>
+>   async disconnect(userId: string): Promise<void> {
+>     await supabase.from('user_settings').update({
+>       google_meet_connected: false,
+>       google_meet_email: null,
+>       google_meet_access_token: null,
+>       google_meet_refresh_token: null,
+>     }).eq('user_id', userId);
+>   },
+>
+>   async getConnectionStatus(userId: string) {
+>     const { data } = await supabase.from('user_settings')
+>       .select('google_meet_connected, google_meet_email, google_meet_auto_join, google_meet_capture_video, google_meet_capture_chat')
+>       .eq('user_id', userId).single();
+>     return data;
+>   },
+>
+>   async updatePreferences(userId: string, prefs: { auto_join?: boolean; capture_video?: boolean; capture_chat?: boolean }) {
+>     await supabase.from('user_settings').update({
+>       google_meet_auto_join: prefs.auto_join,
+>       google_meet_capture_video: prefs.capture_video,
+>       google_meet_capture_chat: prefs.capture_chat,
+>     }).eq('user_id', userId);
+>   },
+> };
+>
+> // ==================== LIVE MEETING ====================
+>
+> export const liveMeetingService = {
+>   async getActive(userId: string) {
+>     const { data } = await supabase.from('live_meetings')
+>       .select('*, meetings(title)')
+>       .eq('user_id', userId)
+>       .eq('capture_active', true)
+>       .order('started_at', { ascending: false })
+>       .limit(1).single();
+>     return data;
+>   },
+>
+>   async subscribeToLive(userId: string, onUpdate: (payload: any) => void) {
+>     return supabase.channel(`live-meeting-${userId}`)
+>       .on('postgres_changes', {
+>         event: '*', schema: 'public', table: 'live_meetings',
+>         filter: `user_id=eq.${userId}`
+>       }, onUpdate)
+>       .subscribe();
+>   },
+>
+>   async startCapture(meetingId: string, googleMeetId: string, userId: string) {
+>     const { data, error } = await supabase.from('live_meetings').insert({
+>       meeting_id: meetingId, user_id: userId,
+>       google_meet_id: googleMeetId, bot_joined: false, capture_active: true,
+>     }).select().single();
+>     if (error) throw error;
+>     // Trigger bot join via edge function
+>     await supabase.functions.invoke('meet-bot-join', { body: { meeting_id: meetingId, google_meet_id: googleMeetId } });
+>     return data;
+>   },
+>
+>   async stopCapture(meetingId: string, userId: string) {
+>     await supabase.from('live_meetings')
+>       .update({ capture_active: false }).eq('meeting_id', meetingId).eq('user_id', userId);
+>     // Trigger AI processing pipeline
+>     await supabase.functions.invoke('trigger-ai-pipeline', {
+>       body: { meeting_id: meetingId, user_id: userId, job_type: 'full_pipeline' }
+>     });
+>     await supabase.from('meetings').update({
+>       status: 'completed', ai_processing_status: 'queued'
+>     }).eq('id', meetingId).eq('user_id', userId);
+>   },
+> };
+>
+> // ==================== AI PROCESSING ====================
+>
+> export const aiProcessingService = {
+>   async getJobStatus(meetingId: string) {
+>     const { data } = await supabase.from('ai_processing_jobs')
+>       .select('*').eq('meeting_id', meetingId)
+>       .order('created_at', { ascending: false });
+>     return data || [];
+>   },
+>
+>   async subscribeToJob(meetingId: string, onUpdate: (payload: any) => void) {
+>     return supabase.channel(`ai-job-${meetingId}`)
+>       .on('postgres_changes', {
+>         event: 'UPDATE', schema: 'public', table: 'ai_processing_jobs',
+>         filter: `meeting_id=eq.${meetingId}`
+>       }, onUpdate)
+>       .subscribe();
+>   },
+>
+>   async subscribeMeetingUpdates(meetingId: string, onUpdate: (payload: any) => void) {
+>     return supabase.channel(`meeting-update-${meetingId}`)
+>       .on('postgres_changes', {
+>         event: 'UPDATE', schema: 'public', table: 'meetings',
+>         filter: `id=eq.${meetingId}`
+>       }, onUpdate)
+>       .subscribe();
+>   },
+>
+>   getStatusLabel(status: string): string {
+>     const labels: Record<string, string> = {
+>       none: 'Not processed', queued: 'Queued for AI',
+>       capturing: 'Capturing live', transcribing: 'Transcribing audio',
+>       analyzing: 'Claude analyzing', complete: 'AI complete', failed: 'Processing failed',
+>     };
+>     return labels[status] || status;
+>   },
+>
+>   getStatusColor(status: string): string {
+>     if (status === 'complete') return 'text-green-600 bg-green-50';
+>     if (status === 'failed') return 'text-red-600 bg-red-50';
+>     if (status === 'none') return 'text-gray-500 bg-gray-50';
+>     return 'text-amber-600 bg-amber-50';
+>   },
+> };
+> ```
+>
+> ---
+>
+> **PART 4 — NEW SUPABASE EDGE FUNCTIONS**
+>
+> Create `supabase/functions/server/google-meet-oauth.ts`:
+>
+> ```typescript
+> // Supabase Edge Function: exchanges Google OAuth code for tokens
+> // Deploy with: supabase functions deploy google-meet-oauth
+> import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+>
+> serve(async (req) => {
+>   const { code, redirect_uri } = await req.json();
+>   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+>     method: 'POST',
+>     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+>     body: new URLSearchParams({
+>       code, redirect_uri,
+>       client_id: Deno.env.get('GOOGLE_CLIENT_ID') || '',
+>       client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') || '',
+>       grant_type: 'authorization_code',
+>     }),
+>   });
+>   const tokens = await tokenRes.json();
+>   const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+>     headers: { Authorization: `Bearer ${tokens.access_token}` },
+>   });
+>   const userInfo = await userRes.json();
+>   return new Response(JSON.stringify({
+>     access_token: tokens.access_token,
+>     refresh_token: tokens.refresh_token,
+>     email: userInfo.email,
+>   }), { headers: { 'Content-Type': 'application/json' } });
+> });
+> ```
+>
+> Create `supabase/functions/server/trigger-ai-pipeline.ts`:
+>
+> ```typescript
+> // Supabase Edge Function: runs the full AI pipeline on a completed meeting
+> // Uses Whisper for transcription, Claude for analysis and action extraction
+> import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+> import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+>
+> serve(async (req) => {
+>   const { meeting_id, user_id } = await req.json();
+>   const supabase = createClient(
+>     Deno.env.get('SUPABASE_URL') || '',
+>     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+>   );
+>
+>   // 1. Create job record
+>   await supabase.from('ai_processing_jobs').insert({
+>     meeting_id, user_id, job_type: 'full_pipeline', status: 'running', started_at: new Date().toISOString(),
+>   });
+>   await supabase.from('meetings').update({ ai_processing_status: 'transcribing' }).eq('id', meeting_id);
+>
+>   // 2. Get meeting data + raw transcript chunk from live_meetings
+>   const { data: liveData } = await supabase.from('live_meetings')
+>     .select('live_transcript_chunk').eq('meeting_id', meeting_id).single();
+>   const rawTranscript = liveData?.live_transcript_chunk || '';
+>
+>   // 3. Update status to analyzing
+>   await supabase.from('meetings').update({ ai_processing_status: 'analyzing' }).eq('id', meeting_id);
+>
+>   // 4. Call Claude to analyze the transcript
+>   const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+>     method: 'POST',
+>     headers: {
+>       'Content-Type': 'application/json',
+>       'x-api-key': Deno.env.get('ANTHROPIC_API_KEY') || '',
+>       'anthropic-version': '2023-06-01',
+>     },
+>     body: JSON.stringify({
+>       model: 'claude-sonnet-4-20250514',
+>       max_tokens: 4000,
+>       messages: [{
+>         role: 'user',
+>         content: `You are an AI meeting analyst. Analyze this meeting transcript and respond ONLY with a valid JSON object (no markdown, no preamble) with exactly these fields:
+> {
+>   "summary": "2-4 sentence meeting overview",
+>   "key_decisions": ["decision 1", "decision 2"],
+>   "meeting_highlights": [{"timestamp": "00:05", "text": "highlight description"}],
+>   "sentiment": "positive|neutral|negative",
+>   "action_items": [
+>     {
+>       "title": "task title",
+>       "description": "task detail",
+>       "assignee": "person name or Unassigned",
+>       "due_date": "YYYY-MM-DD (estimate 1 week out if unclear)",
+>       "priority": "high|medium|low"
+>     }
+>   ],
+>   "participants": [
+>     {
+>       "name": "person name",
+>       "speaking_time_seconds": 120,
+>       "word_count": 300,
+>       "sentiment": "positive|neutral|negative",
+>       "contribution_score": 0.75,
+>       "tasks_assigned": 2
+>     }
+>   ]
+> }
+>
+> Meeting transcript:
+> ${rawTranscript || 'No transcript captured. Generate placeholder analysis based on the meeting context.'}`,
+>       }],
+>     }),
+>   });
+>
+>   const claudeData = await claudeRes.json();
+>   let analysis: any = {};
+>   try {
+>     const text = claudeData.content[0].text.replace(/```json|```/g, '').trim();
+>     analysis = JSON.parse(text);
+>   } catch { analysis = { summary: 'AI analysis completed.', key_decisions: [], meeting_highlights: [], sentiment: 'neutral', action_items: [], participants: [] }; }
+>
+>   // 5. Write results back to meetings table
+>   await supabase.from('meetings').update({
+>     summary: analysis.summary,
+>     transcript: rawTranscript,
+>     key_decisions: analysis.key_decisions,
+>     meeting_highlights: analysis.meeting_highlights,
+>     sentiment: analysis.sentiment,
+>     ai_processed: true,
+>     ai_processing_status: 'complete',
+>   }).eq('id', meeting_id);
+>
+>   // 6. Write action items
+>   if (analysis.action_items?.length > 0) {
+>     const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 7);
+>     const dueDate = tomorrow.toISOString().split('T')[0];
+>     await supabase.from('action_items').insert(
+>       analysis.action_items.map((a: any) => ({
+>         meeting_id, user_id,
+>         title: a.title, description: a.description,
+>         assignee: a.assignee || 'Unassigned',
+>         due_date: a.due_date || dueDate,
+>         priority: a.priority || 'medium',
+>         status: 'todo', progress: 0,
+>       }))
+>     );
+>   }
+>
+>   // 7. Update participant AI data
+>   if (analysis.participants?.length > 0) {
+>     for (const p of analysis.participants) {
+>       await supabase.from('meeting_participants').update({
+>         speaking_time_seconds: p.speaking_time_seconds || 0,
+>         word_count: p.word_count || 0,
+>         sentiment: p.sentiment || 'neutral',
+>         contribution_score: p.contribution_score || 0,
+>         tasks_assigned: p.tasks_assigned || 0,
+>       }).eq('meeting_id', meeting_id).ilike('participant_name', `%${p.name}%`);
+>     }
+>   }
+>
+>   // 8. Create notification
+>   await supabase.from('notifications').insert({
+>     user_id, type: 'meeting',
+>     title: 'AI analysis complete',
+>     message: `Your meeting has been fully analyzed. ${analysis.action_items?.length || 0} action items extracted.`,
+>     link: `/meetings/${meeting_id}`,
+>   });
+>
+>   // 9. Mark job complete
+>   await supabase.from('ai_processing_jobs').update({
+>     status: 'complete', completed_at: new Date().toISOString(),
+>     output_data: { summary: analysis.summary, action_items_count: analysis.action_items?.length || 0 },
+>   }).eq('meeting_id', meeting_id);
+>
+>   return new Response(JSON.stringify({ success: true }), { headers: { 'Content-Type': 'application/json' } });
+> });
+> ```
+>
+> ---
+>
+> **PART 5 — NEW FILE `src/app/components/GoogleMeetCallback.tsx`**
+>
+> ```typescript
+> import { useEffect, useState } from 'react';
+> import { useNavigate, useSearchParams } from 'react-router';
+> import { motion } from 'motion/react';
+> import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+> import { useAuth } from '../context/AuthContext';
+> import { googleMeetOAuth } from '../services/googleMeetService';
+>
+> export function GoogleMeetCallback() {
+>   const [searchParams] = useSearchParams();
+>   const { user } = useAuth();
+>   const navigate = useNavigate();
+>   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+>   const [message, setMessage] = useState('Connecting your Google Meet account...');
+>
+>   useEffect(() => {
+>     const code = searchParams.get('code');
+>     const error = searchParams.get('error');
+>
+>     if (error) {
+>       setStatus('error');
+>       setMessage('Google authorization was denied. Please try again.');
+>       setTimeout(() => navigate('/settings'), 3000);
+>       return;
+>     }
+>
+>     if (!code || !user) return;
+>
+>     googleMeetOAuth.exchangeCode(code, user.id)
+>       .then(() => {
+>         setStatus('success');
+>         setMessage('Google Meet connected successfully!');
+>         setTimeout(() => navigate('/settings'), 2000);
+>       })
+>       .catch(() => {
+>         setStatus('error');
+>         setMessage('Failed to connect Google Meet. Please try again.');
+>         setTimeout(() => navigate('/settings'), 3000);
+>       });
+>   }, [searchParams, user, navigate]);
+>
+>   return (
+>     <div className="min-h-screen flex items-center justify-center"
+>       style={{ background: 'linear-gradient(135deg, #f5f5dc 0%, #faf8f3 50%, #f0ece2 100%)' }}>
+>       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+>         className="glass rounded-2xl p-12 text-center shadow-xl max-w-sm w-full mx-4"
+>         style={{ background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.5)' }}>
+>         {status === 'loading' && <Loader2 className="w-14 h-14 animate-spin text-purple-600 mx-auto mb-4" />}
+>         {status === 'success' && <CheckCircle2 className="w-14 h-14 text-green-500 mx-auto mb-4" />}
+>         {status === 'error' && <AlertCircle className="w-14 h-14 text-red-500 mx-auto mb-4" />}
+>         <p className="text-gray-700 font-semibold text-lg">{message}</p>
+>         <p className="text-gray-500 text-sm mt-2">Redirecting to Settings...</p>
+>       </motion.div>
+>     </div>
+>   );
+> }
+> ```
+>
+> ---
+>
+> **PART 6 — NEW FILE `src/app/components/LiveMeetingBanner.tsx`**
+>
+> This component lives inside `DashboardLayout.tsx` between the logo and the nav links. It shows when a meeting is actively being captured:
+>
+> ```typescript
+> import { useState, useEffect } from 'react';
+> import { motion, AnimatePresence } from 'motion/react';
+> import { Radio, ChevronDown, Mic, Video, MessageSquare, StopCircle } from 'lucide-react';
+> import { useAuth } from '../context/AuthContext';
+> import { useTheme } from '../context/ThemeContext';
+> import { liveMeetingService } from '../services/googleMeetService';
+>
+> export function LiveMeetingBanner() {
+>   const { user } = useAuth();
+>   const { theme } = useTheme();
+>   const [liveMeeting, setLiveMeeting] = useState<any>(null);
+>   const [expanded, setExpanded] = useState(false);
+>   const [elapsed, setElapsed] = useState(0);
+>
+>   useEffect(() => {
+>     if (!user) return;
+>     let channel: any;
+>
+>     liveMeetingService.getActive(user.id).then(setLiveMeeting);
+>     liveMeetingService.subscribeToLive(user.id, (payload) => {
+>       if (payload.eventType === 'DELETE' || !payload.new?.capture_active) setLiveMeeting(null);
+>       else setLiveMeeting(payload.new);
+>     }).then(ch => { channel = ch; });
+>
+>     return () => { channel?.unsubscribe(); };
+>   }, [user]);
+>
+>   useEffect(() => {
+>     if (!liveMeeting) { setElapsed(0); return; }
+>     const start = new Date(liveMeeting.started_at).getTime();
+>     const interval = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+>     return () => clearInterval(interval);
+>   }, [liveMeeting]);
+>
+>   const formatElapsed = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+>
+>   if (!liveMeeting) return null;
+>
+>   return (
+>     <AnimatePresence>
+>       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+>         className="relative">
+>         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+>           onClick={() => setExpanded(!expanded)}
+>           className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold text-white shadow-lg"
+>           style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+>           <span className="relative flex h-2 w-2">
+>             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"/>
+>             <span className="relative inline-flex rounded-full h-2 w-2 bg-white"/>
+>           </span>
+>           Live · {formatElapsed(elapsed)}
+>           <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? 'rotate-180' : ''}`}/>
+>         </motion.button>
+>
+>         <AnimatePresence>
+>           {expanded && (
+>             <motion.div initial={{ opacity: 0, y: -4, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.95 }}
+>               className="absolute top-10 left-0 z-50 w-72 rounded-2xl p-4 shadow-2xl"
+>               style={{ background: theme === 'dark' ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.3)' }}>
+>               <p className={`font-bold text-sm mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+>                 {liveMeeting.meetings?.title || 'Meeting in progress'}
+>               </p>
+>               <p className="text-xs text-gray-500 mb-3">Duration: {formatElapsed(elapsed)}</p>
+>               <div className="space-y-2 mb-4">
+>                 {[
+>                   { icon: Mic, label: 'Audio capture', active: true },
+>                   { icon: Video, label: 'Video capture', active: liveMeeting.capture_active },
+>                   { icon: MessageSquare, label: 'Chat capture', active: true },
+>                 ].map(({ icon: Icon, label, active }) => (
+>                   <div key={label} className="flex items-center gap-2 text-xs">
+>                     <Icon className={`w-3.5 h-3.5 ${active ? 'text-green-500' : 'text-gray-400'}`}/>
+>                     <span className={active ? (theme === 'dark' ? 'text-gray-200' : 'text-gray-700') : 'text-gray-400'}>{label}</span>
+>                     <span className={`ml-auto text-xs font-medium ${active ? 'text-green-600' : 'text-gray-400'}`}>{active ? 'Active' : 'Off'}</span>
+>                   </div>
+>                 ))}
+>               </div>
+>               {liveMeeting.current_speaker && (
+>                 <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-50 mb-3">
+>                   <div className="flex gap-0.5 items-end h-4">
+>                     {[3,5,4,6,3].map((h, i) => (
+>                       <motion.div key={i} animate={{ height: [h, h*1.5, h] }} transition={{ repeat: Infinity, duration: 0.5, delay: i*0.1 }}
+>                         className="w-1 bg-purple-500 rounded-full" style={{ height: h*2 }}/>
+>                     ))}
+>                   </div>
+>                   <span className="text-xs text-purple-700 font-medium">Speaking: {liveMeeting.current_speaker}</span>
+>                 </div>
+>               )}
+>               <button onClick={() => { if(user) liveMeetingService.stopCapture(liveMeeting.meeting_id, user.id); setExpanded(false); }}
+>                 className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-semibold text-white"
+>                 style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)' }}>
+>                 <StopCircle className="w-3.5 h-3.5"/> Stop capture & run AI
+>               </button>
+>             </motion.div>
+>           )}
+>         </AnimatePresence>
+>       </motion.div>
+>     </AnimatePresence>
+>   );
+> }
+> ```
+>
+> ---
+>
+> **PART 7 — UPDATE `src/app/components/DashboardLayout.tsx`**
+>
+> Import `LiveMeetingBanner` at the top: `import { LiveMeetingBanner } from './LiveMeetingBanner';`
+>
+> In the top navigation bar JSX, insert `<LiveMeetingBanner />` between the logo pill div and the `<nav>` element containing the navigation links. The full updated header row should be: `[Logo] [LiveMeetingBanner] [Nav links] [Right actions]`.
+>
+> ---
+>
+> **PART 8 — UPDATE `src/app/components/MeetingDetail.tsx`**
+>
+> Make these targeted additions to the existing component:
+>
+> 1. Add to imports: `import { aiProcessingService } from '../services/googleMeetService';` and add these lucide icons: `Zap, Brain, Target, TrendingUp, ThumbsUp, ThumbsDown, Minus`.
+>
+> 2. Add to state declarations (after `const [error, setError]`):
+> ```typescript
+> const [aiJobs, setAiJobs] = useState<any[]>([]);
+> ```
+>
+> 3. Add a fourth tab value `"participants"` to the `activeTab` type union: `useState<"summary" | "transcript" | "actions" | "participants">("summary")`.
+>
+> 4. Inside `loadMeetingData`, after fetching action items, add:
+> ```typescript
+> const jobs = await aiProcessingService.getJobStatus(id);
+> setAiJobs(jobs);
+> // Subscribe to AI job updates
+> aiProcessingService.subscribeToJob(id, () => aiProcessingService.getJobStatus(id).then(setAiJobs));
+> // Subscribe to meeting field updates (summary, status)
+> aiProcessingService.subscribeMeetingUpdates(id, (payload) => {
+>   if (payload.new) setMeeting((prev: any) => ({ ...prev, ...payload.new }));
+> });
+> ```
+>
+> 5. Add an AI Processing Status banner directly below the meeting header div (before the grid). Show it only when `meeting.ai_processing_status !== 'none' && meeting.ai_processing_status !== 'complete'`:
+> ```tsx
+> {meeting.ai_processing_status && meeting.ai_processing_status !== 'none' && meeting.ai_processing_status !== 'complete' && (
+>   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+>     className="flex items-center gap-3 px-5 py-3 rounded-xl text-sm font-semibold"
+>     style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(59,130,246,0.1))', border: '1px solid rgba(139,92,246,0.2)' }}>
+>     <Loader2 className="w-4 h-4 animate-spin text-purple-600"/>
+>     <span className="text-purple-700">{aiProcessingService.getStatusLabel(meeting.ai_processing_status)}</span>
+>     <span className="ml-auto text-xs text-purple-500">Auto-refreshing...</span>
+>   </motion.div>
+> )}
+> ```
+>
+> 6. Add "Participants" as a 4th tab button in the tabs row, matching the existing tab button style exactly.
+>
+> 7. In the Summary tab content, after the existing summary paragraph, add two new sections:
+>
+>    **Key Decisions section** — show only when `meeting.key_decisions?.length > 0`:
+>    ```tsx
+>    <div>
+>      <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+>        <Target className="w-5 h-5 text-blue-500"/> Key Decisions
+>      </h3>
+>      <ul className="space-y-2">
+>        {meeting.key_decisions?.map((d: string, i: number) => (
+>          <li key={i} className="flex items-start gap-2 p-3 bg-blue-50 rounded-xl text-sm text-gray-700">
+>            <span className="w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">{i+1}</span>
+>            {d}
+>          </li>
+>        ))}
+>      </ul>
+>    </div>
+>    ```
+>
+>    **Meeting Highlights section** — show only when `meeting.meeting_highlights?.length > 0`:
+>    ```tsx
+>    <div>
+>      <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+>        <Zap className="w-5 h-5 text-amber-500"/> Highlights
+>      </h3>
+>      <div className="space-y-2">
+>        {meeting.meeting_highlights?.map((h: any, i: number) => (
+>          <div key={i} className="flex items-start gap-3 p-3 bg-white/60 rounded-xl text-sm">
+>            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-mono font-bold flex-shrink-0">{h.timestamp}</span>
+>            <span className="text-gray-700">{h.text}</span>
+>          </div>
+>        ))}
+>      </div>
+>    </div>
+>    ```
+>
+>    Also add a sentiment badge next to the "Meeting Summary" heading: after `<Sparkles .../>` and before the title text, add:
+>    ```tsx
+>    {meeting.sentiment && (
+>      <span className={`ml-auto px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+>        meeting.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
+>        meeting.sentiment === 'negative' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+>      }`}>
+>        {meeting.sentiment === 'positive' ? <ThumbsUp className="w-3 h-3"/> : meeting.sentiment === 'negative' ? <ThumbsDown className="w-3 h-3"/> : <Minus className="w-3 h-3"/>}
+>        {meeting.sentiment}
+>      </span>
+>    )}
+>    ```
+>
+> 8. Add the new **Participants tab content** after the existing `actions` AnimatePresence block:
+> ```tsx
+> {activeTab === "participants" && (
+>   <motion.div key="participants" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-3">
+>     {meeting.meeting_participants && meeting.meeting_participants.length > 0 ? (
+>       meeting.meeting_participants.map((p: any, idx: number) => {
+>         const speakingPct = p.speaking_time_seconds
+>           ? Math.min(100, Math.round((p.speaking_time_seconds / Math.max(...meeting.meeting_participants.map((x: any) => x.speaking_time_seconds || 1))) * 100))
+>           : 0;
+>         return (
+>           <motion.div key={p.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.08 }}
+>             className="p-4 bg-white/60 rounded-xl border border-white/50">
+>             <div className="flex items-center gap-3 mb-3">
+>               <div className={`w-10 h-10 ${getColorForName(p.participant_name)} rounded-full flex items-center justify-center shadow-md`}>
+>                 <span className="text-white text-sm font-bold">{getInitials(p.participant_name)}</span>
+>               </div>
+>               <div className="flex-1">
+>                 <p className="font-semibold text-gray-900">{p.participant_name}</p>
+>                 <p className="text-xs text-gray-500">{p.role || 'Participant'}</p>
+>               </div>
+>               <div className="flex items-center gap-2">
+>                 {p.tasks_assigned > 0 && (
+>                   <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
+>                     {p.tasks_assigned} task{p.tasks_assigned !== 1 ? 's' : ''}
+>                   </span>
+>                 )}
+>                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+>                   p.sentiment === 'positive' ? 'bg-green-100 text-green-700' :
+>                   p.sentiment === 'negative' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+>                 }`}>{p.sentiment || 'neutral'}</span>
+>               </div>
+>             </div>
+>             {p.speaking_time_seconds > 0 && (
+>               <div>
+>                 <div className="flex justify-between text-xs text-gray-500 mb-1">
+>                   <span className="flex items-center gap-1"><Mic className="w-3 h-3"/> Speaking time</span>
+>                   <span>{Math.floor((p.speaking_time_seconds || 0) / 60)}m {(p.speaking_time_seconds || 0) % 60}s</span>
+>                 </div>
+>                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+>                   <motion.div initial={{ width: 0 }} animate={{ width: `${speakingPct}%` }} transition={{ delay: 0.2 + idx * 0.08, duration: 0.8 }}
+>                     className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full"/>
+>                 </div>
+>               </div>
+>             )}
+>             {p.contribution_score > 0 && (
+>               <div className="mt-2">
+>                 <div className="flex justify-between text-xs text-gray-500 mb-1">
+>                   <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3"/> Contribution</span>
+>                   <span>{Math.round(p.contribution_score * 100)}%</span>
+>                 </div>
+>                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+>                   <motion.div initial={{ width: 0 }} animate={{ width: `${Math.round(p.contribution_score * 100)}%` }} transition={{ delay: 0.3 + idx * 0.08, duration: 0.8 }}
+>                     className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"/>
+>                 </div>
+>               </div>
+>             )}
+>           </motion.div>
+>         );
+>       })
+>     ) : (
+>       <div className="text-center py-12">
+>         <Brain className="w-12 h-12 text-gray-300 mx-auto mb-3"/>
+>         <p className="text-gray-500">Participant analytics will appear here after AI processing completes.</p>
+>       </div>
+>     )}
+>   </motion.div>
+> )}
+> ```
+>
+> Also add `import { Mic } from 'lucide-react'` to the existing lucide imports if not already present.
+>
+> ---
+>
+> **PART 9 — UPDATE `src/app/components/Meetings.tsx`**
+>
+> 1. Add to imports: `import { liveMeetingService, googleMeetOAuth } from '../services/googleMeetService';`
+>
+> 2. Add to state: `const [googleMeetConnected, setGoogleMeetConnected] = useState(false);`
+>
+> 3. In `useEffect`, after `fetchMeetings()`, add:
+> ```typescript
+> googleMeetOAuth.getConnectionStatus(user.id).then(s => setGoogleMeetConnected(s?.google_meet_connected || false));
+> ```
+>
+> 4. On each meeting card, replace the existing plain status text with a styled pill:
+> ```tsx
+> <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+>   meeting.status === 'completed' ? 'bg-green-100 text-green-700' :
+>   meeting.status === 'in-progress' ? 'bg-red-100 text-red-700 animate-pulse' :
+>   meeting.ai_processing_status === 'queued' || meeting.ai_processing_status === 'transcribing' || meeting.ai_processing_status === 'analyzing' ? 'bg-amber-100 text-amber-700' :
+>   'bg-blue-100 text-blue-700'
+> }`}>
+>   {meeting.status === 'in-progress' ? '🔴 Live Now' :
+>    meeting.ai_processing_status === 'queued' ? '⏳ Processing' :
+>    meeting.ai_processing_status === 'transcribing' ? '🎙 Transcribing' :
+>    meeting.ai_processing_status === 'analyzing' ? '🧠 Analyzing' :
+>    meeting.status === 'completed' ? '✓ Completed' : '📅 Scheduled'}
+> </span>
+> ```
+>
+> 5. On each completed meeting card that has `meeting.summary`, show a preview snippet below the title:
+> ```tsx
+> {meeting.summary && (
+>   <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{meeting.summary}</p>
+> )}
+> ```
+>
+> 6. In the "New Meeting" modal, add a "Start with Google Meet" button as the first option (only when `googleMeetConnected` is true). Style it with a green left border accent and Google Meet icon (use the Video icon in green). When clicked, it sets the meeting location to the Google Meet URL and marks it as the Google Meet source.
+>
+> ---
+>
+> **PART 10 — UPDATE `src/app/components/Settings.tsx` — Integrations section**
+>
+> 1. Add to imports: `import { googleMeetOAuth } from '../services/googleMeetService';`
+>
+> 2. Add to state: `const [meetSettings, setMeetSettings] = useState<any>(null);`
+>
+> 3. In the existing `useEffect` (or the `useEffect` where settings load), add:
+> ```typescript
+> if (user) googleMeetOAuth.getConnectionStatus(user.id).then(setMeetSettings);
+> ```
+>
+> 4. In the integrations section, REPLACE the current `Google Calendar` card with the full Google Meet integration card. The new card should be the first and largest card in the integrations grid, spanning full width (`col-span-2` on md breakpoint). Build it exactly as follows:
+>
+> ```tsx
+> {/* Google Meet — primary integration card */}
+> <div className={`md:col-span-2 p-5 rounded-2xl border-2 ${meetSettings?.google_meet_connected ? 'border-green-300 bg-green-50/50' : 'border-dashed border-gray-200 bg-white/30'} transition-all`}>
+>   <div className="flex items-start justify-between gap-4">
+>     <div className="flex items-center gap-3">
+>       <div className="w-12 h-12 rounded-xl bg-white shadow-md flex items-center justify-center text-xl">🎥</div>
+>       <div>
+>         <div className="flex items-center gap-2">
+>           <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Google Meet</h3>
+>           {meetSettings?.google_meet_connected && (
+>             <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold">Connected</span>
+>           )}
+>         </div>
+>         <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+>           {meetSettings?.google_meet_connected ? `Signed in as ${meetSettings.google_meet_email}` : 'Auto-capture meetings with AI analysis'}
+>         </p>
+>       </div>
+>     </div>
+>     {meetSettings?.google_meet_connected ? (
+>       <button onClick={() => { if(user) googleMeetOAuth.disconnect(user.id).then(() => setMeetSettings((p: any) => ({ ...p, google_meet_connected: false }))); }}
+>         className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-all">
+>         Disconnect
+>       </button>
+>     ) : (
+>       <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+>         onClick={() => { window.location.href = googleMeetOAuth.getAuthUrl(); }}
+>         className="px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg"
+>         style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+>         Connect Google Meet
+>       </motion.button>
+>     )}
+>   </div>
+>   {meetSettings?.google_meet_connected && (
+>     <div className="mt-4 grid grid-cols-3 gap-3 pt-4 border-t border-green-200">
+>       {[
+>         { key: 'google_meet_auto_join', label: 'Auto-join meetings', desc: 'Bot joins automatically' },
+>         { key: 'google_meet_capture_video', label: 'Capture video', desc: 'Screen & face analysis' },
+>         { key: 'google_meet_capture_chat', label: 'Capture chat', desc: 'Messages & reactions' },
+>       ].map(({ key, label, desc }) => (
+>         <div key={key} className="flex items-center justify-between p-3 bg-white/60 rounded-xl">
+>           <div>
+>             <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{label}</p>
+>             <p className="text-xs text-gray-500">{desc}</p>
+>           </div>
+>           <button onClick={() => {
+>             const newVal = !meetSettings[key];
+>             setMeetSettings((p: any) => ({ ...p, [key]: newVal }));
+>             if (user) googleMeetOAuth.updatePreferences(user.id, { [key.replace('google_meet_', '')]: newVal });
+>           }} className={`relative w-10 h-5 rounded-full transition-colors ${meetSettings[key] ? 'bg-purple-600' : 'bg-gray-200'}`}>
+>             <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${meetSettings[key] ? 'translate-x-5' : 'translate-x-0.5'}`}/>
+>           </button>
+>         </div>
+>       ))}
+>     </div>
+>   )}
+>   {!meetSettings?.google_meet_connected && (
+>     <ul className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-600">
+>       {['Auto-capture audio, video & chat', 'AI transcription with speaker labels', 'Claude extracts action items', 'Participant analytics & sentiment'].map(f => (
+>         <li key={f} className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-purple-500 rounded-full"/>{f}</li>
+>       ))}
+>     </ul>
+>   )}
+> </div>
+> ```
+>
+> Keep all the existing integration cards (Slack, Zoom, Teams, Jira, GitHub) below this card unchanged.
+>
+> ---
+>
+> **PART 11 — UPDATE `src/app/App.tsx`**
+>
+> 1. Add import: `import { GoogleMeetCallback } from './components/GoogleMeetCallback';`
+>
+> 2. Add this route inside `<Routes>`, outside the `ProtectedRoute` wrapper, alongside `/login` and `/signup`:
+> ```tsx
+> <Route path="/auth/google-meet/callback" element={<GoogleMeetCallback />} />
+> ```
+>
+> ---
+>
+> **PART 12 — UPDATE `src/app/services/api.ts`**
+>
+> In `meetingsAPI.getAll`, update the select string from `'*, meeting_participants(*)'` to `'*, meeting_participants(*)'` — no change needed there. But in `meetingsAPI.getById`, update the select string to include the new AI fields:
+> ```typescript
+> .select('*, meeting_participants(*), action_items(*)')
+> ```
+> This already exists — just make sure `summary`, `transcript`, `key_decisions`, `meeting_highlights`, `sentiment`, `ai_processing_status`, `ai_processed`, `video_insights` are all returned (they will be by default with `*`).
+>
+> In `meetingsAPI.create`, add `ai_processing_status: 'none'` and `ai_processed: false` as default fields in the insert type so TypeScript doesn't complain.
+>
+> Add this new function to `meetingsAPI`:
+> ```typescript
+> async startAIProcessing(id: string, userId: string) {
+>   const { data, error } = await supabase
+>     .from('meetings')
+>     .update({ ai_processing_status: 'queued', status: 'in-progress' })
+>     .eq('id', id).eq('user_id', userId).select().single();
+>   if (error) throw error;
+>   // Invoke edge function
+>   await supabase.functions.invoke('trigger-ai-pipeline', { body: { meeting_id: id, user_id: userId } });
+>   return data;
+> },
+> ```
+>
+> ---
+>
+> **PART 13 — NEW `.env.example` file**
+>
+> Create `.env.example` at root:
+> ```
+> # Supabase
+> VITE_SUPABASE_URL=https://your-project.supabase.co
+> VITE_SUPABASE_ANON_KEY=your-anon-key
+>
+> # Google OAuth (for Google Meet integration)
+> VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
+>
+> # Supabase Edge Function secrets (set via: supabase secrets set KEY=value)
+> # GOOGLE_CLIENT_ID=your-google-oauth-client-id
+> # GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
+> # ANTHROPIC_API_KEY=your-anthropic-api-key
+> ```
+>
+> ---
+>
+> **PART 14 — UPDATE `src/app/components/ActionItems.tsx`**
+>
+> On each action item card, show the meeting name as a linked source when `item.meetingId` exists:
+> ```tsx
+> {action.meetingId && (
+>   <Link to={`/meetings/${action.meetingId}`} className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1 mt-1">
+>     <Video className="w-3 h-3"/> From meeting
+>   </Link>
+> )}
+> ```
+>
+> Below the task title on each card, add the progress bar (already exists in the data model as `action.progress 0-100`):
+> ```tsx
+> <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">
+>   <motion.div initial={{ width: 0 }} animate={{ width: `${action.progress || 0}%` }}
+>     transition={{ duration: 0.8 }} className={`h-full rounded-full ${
+>     action.status === 'completed' ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
+>     action.status === 'in_progress' ? 'bg-gradient-to-r from-blue-400 to-indigo-500' :
+>     'bg-gradient-to-r from-gray-300 to-gray-400'
+>   }`}/>
+> </div>
+> ```
+>
+> ---
+>
+> Do not remove, rename, or restructure any existing component, route, context, service method, or Supabase table. All changes are purely additive except for the targeted replacements explicitly described above. Maintain all existing TypeScript types, all `motion` animation patterns, all `useAuth`/`useTheme` usage, and all `apiWrapper` routing patterns throughout every changed file.

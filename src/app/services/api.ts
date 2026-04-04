@@ -1,4 +1,5 @@
 import { supabase, Database } from '../../lib/supabase';
+import { projectId, publicAnonKey } from '../../../utils/supabase/info';
 
 // Type aliases for convenience
 type Meeting = Database['public']['Tables']['meetings']['Row'];
@@ -165,6 +166,31 @@ export const meetingsAPI = {
 
     if (error) throw error;
     return data || [];
+  },
+
+  async triggerAIAnalysis(id: string, userId: string) {
+    const { data, error } = await supabase
+      .from('meetings')
+      .update({ ai_processing_status: 'queued', status: 'in-progress' as const })
+      .eq('id', id).eq('user_id', userId).select().single();
+    if (error) throw error;
+    
+    // Call the trigger-ai-pipeline endpoint directly
+    const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-af44c8dd/trigger-ai-pipeline`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${publicAnonKey}`,
+      },
+      body: JSON.stringify({ meeting_id: id, user_id: userId }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to trigger AI pipeline');
+    }
+    
+    return data;
   },
 };
 
@@ -339,10 +365,11 @@ export const userAPI = {
       .from('users')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
-    return data;
+    // Return a minimal fallback if profile doesn't exist yet (race condition on first OAuth login)
+    return data ?? { id: userId, name: '', email: '', role: null, department: null, avatar: null, location: null, bio: null, join_date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString() };
   },
 
   async updateProfile(userId: string, profile: Partial<Database['public']['Tables']['users']['Update']>) {

@@ -1,26 +1,10 @@
+import { AlertCircle, Clock, Circle, CheckCircle2, ChevronDown, Search, Filter, User, Link2, Calendar, Flag, Loader2, Video } from "lucide-react";
 import { useState, useEffect } from "react";
+import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  CheckCircle2, 
-  Clock, 
-  Circle,
-  AlertCircle,
-  Plus, 
-  Search, 
-  Filter, 
-  ChevronDown,
-  Video,
-  User,
-  Calendar as CalendarIcon,
-  Loader2,
-  Edit,
-  Trash2,
-  X,
-  Flag
-} from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
-import { actionItemsAPI } from "../services/apiWrapper";
+import { actionItemsAPI } from "../services/api";
 
 const priorityConfig = {
   high: { color: "from-red-500 to-pink-500", icon: AlertCircle, label: "High" },
@@ -304,14 +288,14 @@ export function ActionItems() {
               className="glass-card rounded-xl p-4 cursor-pointer"
             >
               <div className="flex items-start gap-3">
-                {/* Status Icon */}
-                <div className={`p-2 rounded-lg bg-gradient-to-br ${statusColor} flex-shrink-0`}>
-                  <StatusIcon className="w-4 h-4 text-white" />
+                {/* Assignee Avatar */}
+                <div className={`w-9 h-9 rounded-full ${action.assignee.color} flex items-center justify-center flex-shrink-0 shadow`}>
+                  <span className="text-white text-xs font-bold">{action.assignee.avatar}</span>
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex items-start justify-between gap-3 mb-1">
                     <h3 className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       {action.task}
                     </h3>
@@ -326,32 +310,44 @@ export function ActionItems() {
                     </span>
                   </div>
 
+                  {/* Thin progress bar */}
+                  <div className="mb-2">
+                    <div className={`h-1.5 rounded-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${action.status === 'completed' ? 100 : (action.progress || 0)}%` }}
+                        transition={{ duration: 0.8 }}
+                        className={`h-full rounded-full ${
+                          action.status === 'completed'
+                            ? 'bg-gradient-to-r from-green-400 to-emerald-500'
+                            : action.status === 'in_progress'
+                            ? 'bg-gradient-to-r from-blue-400 to-indigo-500'
+                            : 'bg-gradient-to-r from-gray-300 to-gray-400'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
                   <div className={`flex items-center gap-3 flex-wrap text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
                     <span className="flex items-center gap-1">
                       <User className="w-3 h-3" />
                       {action.assignee.name}
                     </span>
                     <span className="flex items-center gap-1">
-                      <CalendarIcon className="w-3 h-3" />
+                      <Calendar className="w-3 h-3" />
                       Due: {action.dueDate}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Video className="w-3 h-3" />
-                      {action.meeting}
-                    </span>
+                    {action.meetingId && (
+                      <Link
+                        to={`/meetings/${action.meetingId}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        <Video className="w-3 h-3" />
+                        From meeting
+                      </Link>
+                    )}
                   </div>
-
-                  {/* Progress Bar */}
-                  {action.status === 'in-progress' && (
-                    <div className="mt-2">
-                      <div className={`h-1.5 rounded-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-600"
-                          style={{ width: `${action.progress || 0}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </motion.div>

@@ -76,11 +76,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check active session with error handling
     supabase.auth
       .getSession()
-      .then(({ data: { session }, error: sessionError }) => {
+      .then(async ({ data: { session }, error: sessionError }) => {
         if (sessionError) {
           console.error('Failed to get session:', sessionError);
           setError(`Authentication error: ${sessionError.message}`);
+          setLoading(false);
+          return;
         }
+
+        // If there's a session, verify the user still exists in the DB
+        if (session?.user) {
+          const { data: dbUser, error: dbError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (!dbUser) {
+            console.warn('Session user not found in database — signing out stale session.');
+            await supabase.auth.signOut();
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -94,11 +115,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setError(null); // Clear any previous errors on successful auth change
+      setError(null);
       setLoading(false);
+
+      // Handle Google OAuth user profile creation
+      if (session?.user && session.user.app_metadata?.provider === 'google') {
+        try {
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (!existingUser) {
+            const googleName = session.user.user_metadata?.full_name
+              || session.user.user_metadata?.name
+              || session.user.email?.split('@')[0]
+              || 'User';
+            const googleAvatar = session.user.user_metadata?.avatar_url || null;
+
+            await supabase.from('users').upsert({
+              id: session.user.id,
+              email: session.user.email || '',
+              name: googleName,
+              avatar: googleAvatar,
+              role: null,
+              department: null,
+              location: null,
+              bio: null,
+              join_date: new Date().toISOString().split('T')[0],
+            }, { onConflict: 'id', ignoreDuplicates: true });
+
+            await supabase.from('user_settings').upsert({
+              user_id: session.user.id,
+              theme: 'light',
+              compact_mode: true,
+              email_notifications: true,
+              push_notifications: false,
+              slack_notifications: false,
+              calendar_sync: false,
+              google_calendar_connected: false,
+              outlook_calendar_connected: false,
+            }, { onConflict: 'user_id', ignoreDuplicates: true });
+          }
+        } catch (err) {
+          console.error('Error creating Google OAuth user profile:', err);
+        }
+      }
     });
 
     return () => subscription.unsubscribe();

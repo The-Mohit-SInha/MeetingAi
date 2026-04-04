@@ -21,17 +21,21 @@ import {
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
+import { useLiveMeeting } from "../context/LiveMeetingContext";
 import { meetingsAPI, participantsAPI } from "../services/apiWrapper";
+import { googleMeetOAuth } from "../services/googleMeetService";
 
 export function Meetings() {
   const { theme, compactMode } = useTheme();
   const { user } = useAuth();
+  const { startLiveMeeting } = useLiveMeeting();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [showNewMeetingModal, setShowNewMeetingModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [meetings, setMeetings] = useState<any[]>([]);
+  const [googleMeetConnected, setGoogleMeetConnected] = useState(false);
   const [stats, setStats] = useState({
     totalMeetings: 0,
     thisWeek: 0,
@@ -50,6 +54,7 @@ export function Meetings() {
   useEffect(() => {
     if (user) {
       fetchMeetings();
+      googleMeetOAuth.getConnectionStatus(user.id).then(s => setGoogleMeetConnected(s?.google_meet_connected || false));
     }
   }, [user]);
 
@@ -337,9 +342,30 @@ export function Meetings() {
                     <Video className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      {meeting.title}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        {meeting.title}
+                      </h3>
+                      {/* Status Pill */}
+                      {meeting.status === 'completed' && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">Completed</span>
+                      )}
+                      {meeting.status === 'in-progress' && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 flex items-center gap-1">
+                          <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" /><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" /></span>
+                          Live Now
+                        </span>
+                      )}
+                      {meeting.status === 'processing' && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Processing
+                        </span>
+                      )}
+                      {meeting.status === 'scheduled' && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">Scheduled</span>
+                      )}
+                    </div>
                     <div className={`flex items-center gap-3 text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} flex-wrap`}>
                       <span className="flex items-center gap-1">
                         <CalendarIcon className="w-3 h-3" />
@@ -350,8 +376,14 @@ export function Meetings() {
                         {meeting.time} • {meeting.duration}
                       </span>
                     </div>
+                    {/* AI Summary preview for completed meetings */}
+                    {meeting.status === 'completed' && meeting.summary && (
+                      <p className={`text-xs mt-1.5 line-clamp-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {meeting.summary}
+                      </p>
+                    )}
                     <div className="flex gap-1.5 mt-2">
-                      {meeting.tags.map((tag) => (
+                      {meeting.tags.map((tag: string) => (
                         <span
                           key={tag}
                           className={`px-2 py-0.5 rounded-full text-xs ${

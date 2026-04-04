@@ -14,11 +14,21 @@ import { Login } from "./components/Login";
 import { Signup } from "./components/Signup";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { DiagnosticPage } from "./components/DiagnosticPage";
+import { AuthCallback } from "./components/AuthCallback";
+import { GoogleMeetCallback } from "./components/GoogleMeetCallback";
 
 export const router = createBrowserRouter([
   {
     path: "/diagnostic",
     element: <DiagnosticPage />,
+  },
+  {
+    path: "/auth/callback",
+    element: <AuthCallback />,
+  },
+  {
+    path: "/auth/google-meet/callback",
+    element: <GoogleMeetCallback />,
   },
   {
     path: "/login",

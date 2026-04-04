@@ -2,6 +2,7 @@ import { ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { Loader2, AlertCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -12,9 +13,24 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/login');
-    }
+    if (loading) return;
+    if (user) return;
+
+    // Don't redirect immediately — verify there's truly no session first
+    // This prevents a race condition after Google OAuth redirect
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      if (cancelled) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session && !cancelled) {
+        navigate('/login', { replace: true });
+      }
+    }, 100);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [user, loading, navigate]);
 
   if (loading) {

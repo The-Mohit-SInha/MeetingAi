@@ -7,6 +7,7 @@ import {
 import { useEffect } from "react";
 import { ThemeProvider } from "./context/ThemeContext";
 import { AuthProvider } from "./context/AuthContext";
+import { LiveMeetingProvider } from "./context/LiveMeetingContext";
 import { DashboardLayout } from "./components/DashboardLayout";
 import { Overview } from "./components/Overview";
 import { Meetings } from "./components/Meetings";
@@ -21,6 +22,8 @@ import { Settings } from "./components/Settings";
 import { Login } from "./components/Login";
 import { Signup } from "./components/Signup";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AuthCallback } from "./components/AuthCallback";
+import { GoogleMeetCallback } from "./components/GoogleMeetCallback";
 import {
   isSupabaseConfigured,
   supabase,
@@ -124,10 +127,13 @@ export default function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
+        <LiveMeetingProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth/google-meet/callback" element={<GoogleMeetCallback />} />
             <Route
               path="/"
               element={
@@ -162,6 +168,7 @@ export default function App() {
             />
           </Routes>
         </BrowserRouter>
+        </LiveMeetingProvider>
       </ThemeProvider>
     </AuthProvider>
   );
