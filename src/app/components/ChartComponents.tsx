@@ -78,7 +78,7 @@ export function MeetingsAreaChart({ data }: ChartProps) {
           dataKey="meetings" 
           stroke="#3b82f6" 
           fillOpacity={1} 
-          fill={`url(#meetingsGradient)`}
+          fill="url(#meetingsGradient)"
           strokeWidth={2} 
         />
       </AreaChart>

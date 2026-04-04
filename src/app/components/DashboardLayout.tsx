@@ -13,8 +13,7 @@ import {
   Sparkles,
   Moon,
   Sun,
-  LogOut,
-  Download
+  LogOut
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTheme } from "../context/ThemeContext";
@@ -27,7 +26,6 @@ import { LiveMeetingBanner } from "./LiveMeetingBanner";
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
   { name: "Meetings", href: "/meetings", icon: Video },
-  { name: "Import", href: "/import-google-meet", icon: Download },
   { name: "Action Items", href: "/actions", icon: CheckSquare },
   { name: "Calendar", href: "/calendar", icon: CalendarIcon },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
