@@ -47,7 +47,9 @@ export function Profile() {
   const fetchProfile = async () => {
     if (!user) return;
 
-    console.log('🔍 [Profile] Fetching profile for user:', user.id, user.email);
+    console.log('🔍 [Profile] Fetching profile for user:', user.id);
+    console.log('🔍 [Profile] User email:', user.email);
+    console.log('🔍 [Profile] User metadata:', user.user_metadata);
 
     try {
       setLoading(true);
@@ -60,16 +62,25 @@ export function Profile() {
 
       const userData = await userAPI.getProfile(user.id);
 
-      console.log('✅ [Profile] Got user data:', userData);
+      console.log('✅ [Profile] Got user data from database:', userData);
 
-      // Fall back to OAuth user metadata if database values are empty
-      const displayName = userData.name || 
-        user.user_metadata?.full_name || 
-        user.user_metadata?.name || 
-        user.email?.split('@')[0] || 
-        '';
+      // Fall back to OAuth user metadata if database values are empty or missing
+      // Use a helper to check if a value is truly empty (null, undefined, or empty string)
+      const isEmpty = (val: any) => !val || val === '';
       
-      const displayEmail = userData.email || user.email || '';
+      const displayName = isEmpty(userData.name)
+        ? (user.user_metadata?.full_name || 
+           user.user_metadata?.name || 
+           user.email?.split('@')[0] || 
+           'User')
+        : userData.name;
+      
+      const displayEmail = isEmpty(userData.email) 
+        ? (user.email || '')
+        : userData.email;
+
+      console.log('📝 [Profile] Using display name:', displayName);
+      console.log('📝 [Profile] Using display email:', displayEmail);
 
       setProfile({
         name: displayName,
@@ -86,9 +97,15 @@ export function Profile() {
     } catch (error) {
       console.error("❌ [Profile] Error fetching profile:", error);
       // On error, use OAuth metadata as complete fallback
+      const fallbackName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User';
+      const fallbackEmail = user.email || '';
+      
+      console.log('⚠️ [Profile] Using fallback name:', fallbackName);
+      console.log('⚠️ [Profile] Using fallback email:', fallbackEmail);
+      
       setProfile({
-        name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '',
-        email: user.email || '',
+        name: fallbackName,
+        email: fallbackEmail,
         phone: '',
         location: '',
         role: '',

@@ -114,11 +114,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Handle Google OAuth user profile creation
       if (session?.user && session.user.app_metadata?.provider === 'google') {
         try {
+          console.log('🔐 [AuthContext] Google OAuth detected');
+          console.log('📧 [AuthContext] User email:', session.user.email);
+          console.log('👤 [AuthContext] User metadata:', session.user.user_metadata);
+          
+          // Check if email is missing - this indicates OAuth misconfiguration
+          if (!session.user.email) {
+            console.error(
+              '❌ [AuthContext] CRITICAL: Google OAuth email is NULL!\n\n' +
+              'This means the email scope is not being requested during OAuth.\n\n' +
+              'To fix this:\n' +
+              '1. Go to Supabase Dashboard → Authentication → Providers → Google\n' +
+              '2. Add scopes: "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid"\n' +
+              '3. Verify your Google Cloud Console OAuth client has email scope enabled\n' +
+              '4. Log out, clear cookies, and log back in\n\n' +
+              'See: https://supabase.com/docs/guides/auth/social-login/auth-google#configuration'
+            );
+          }
+          
           const { data: existingUser } = await supabase
             .from('users')
             .select('id')
             .eq('id', session.user.id)
             .maybeSingle();
+
+          console.log('🔍 [AuthContext] Existing user in DB:', existingUser);
 
           if (!existingUser) {
             const googleName = session.user.user_metadata?.full_name
@@ -126,10 +146,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               || session.user.email?.split('@')[0]
               || 'User';
             const googleAvatar = session.user.user_metadata?.avatar_url || null;
+            const googleEmail = session.user.email || 'no-email@example.com'; // Fallback for misconfigured OAuth
 
-            await supabase.from('users').upsert({
+            console.log('➕ [AuthContext] Creating new user profile in DB');
+            console.log('📝 [AuthContext] Name:', googleName);
+            console.log('📧 [AuthContext] Email:', googleEmail);
+            console.log('🖼️ [AuthContext] Avatar:', googleAvatar);
+
+            const { data: insertedUser, error: insertError } = await supabase.from('users').upsert({
               id: session.user.id,
-              email: session.user.email || '',
+              email: googleEmail,
               name: googleName,
               avatar: googleAvatar,
               role: null,
@@ -139,7 +165,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               join_date: new Date().toISOString().split('T')[0],
             }, { onConflict: 'id', ignoreDuplicates: true });
 
-            await supabase.from('user_settings').upsert({
+            if (insertError) {
+              console.error('❌ [AuthContext] Error inserting user:', insertError);
+            } else {
+              console.log('✅ [AuthContext] User profile created:', insertedUser);
+            }
+
+            const { data: insertedSettings, error: settingsError } = await supabase.from('user_settings').upsert({
               user_id: session.user.id,
               theme: 'light',
               compact_mode: true,
@@ -150,9 +182,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               google_calendar_connected: false,
               outlook_calendar_connected: false,
             }, { onConflict: 'user_id', ignoreDuplicates: true });
+
+            if (settingsError) {
+              console.error('❌ [AuthContext] Error inserting settings:', settingsError);
+            } else {
+              console.log('✅ [AuthContext] User settings created:', insertedSettings);
+            }
+          } else {
+            console.log('ℹ️ [AuthContext] User already exists in DB, skipping creation');
           }
         } catch (err) {
-          console.error('Error creating Google OAuth user profile:', err);
+          console.error('❌ [AuthContext] Error creating Google OAuth user profile:', err);
         }
       }
     });
