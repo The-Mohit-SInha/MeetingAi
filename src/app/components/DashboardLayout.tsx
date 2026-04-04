@@ -245,7 +245,18 @@ export function DashboardLayout() {
 
             <motion.button
               whileHover={{ scale: 1.1 }}
-              onClick={() => signOut().then(() => navigate('/login'))}
+              onClick={async () => {
+                try {
+                  console.log('🚪 Logging out...');
+                  await signOut();
+                  console.log('✅ Signed out successfully, navigating to login...');
+                  navigate('/login');
+                } catch (error) {
+                  console.error('❌ Logout error:', error);
+                  // Force navigation even if signOut fails
+                  navigate('/login');
+                }
+              }}
               className={`p-1.5 rounded-full transition-colors ${
                 theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-white/60'
               }`}

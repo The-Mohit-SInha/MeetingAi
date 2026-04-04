@@ -195,16 +195,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    if (!isConfigured) {
-      // Use local authentication
-      await localSignOut();
+    try {
+      if (!isConfigured) {
+        // Use local authentication
+        await localSignOut();
+        setUser(null);
+        setSession(null);
+        return;
+      }
+      
+      console.log('🔓 [AuthContext] Signing out from Supabase...');
+      await authAPI.signOut();
+      console.log('✅ [AuthContext] Successfully signed out from Supabase');
       setUser(null);
       setSession(null);
-      return;
+    } catch (error) {
+      console.error('❌ [AuthContext] Error signing out:', error);
+      // Clear state anyway to prevent stuck sessions
+      setUser(null);
+      setSession(null);
+      throw error;
     }
-    await authAPI.signOut();
-    setUser(null);
-    setSession(null);
   };
 
   const resetPassword = async (email: string) => {

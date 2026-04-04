@@ -62,9 +62,18 @@ export function Profile() {
 
       console.log('✅ [Profile] Got user data:', userData);
 
+      // Fall back to OAuth user metadata if database values are empty
+      const displayName = userData.name || 
+        user.user_metadata?.full_name || 
+        user.user_metadata?.name || 
+        user.email?.split('@')[0] || 
+        '';
+      
+      const displayEmail = userData.email || user.email || '';
+
       setProfile({
-        name: userData.name || user.email?.split('@')[0] || '',
-        email: userData.email || user.email || '',
+        name: displayName,
+        email: displayEmail,
         phone: userData.phone || '',
         location: userData.location || '',
         role: userData.role || '',
@@ -76,6 +85,17 @@ export function Profile() {
       clearTimeout(timeoutId);
     } catch (error) {
       console.error("❌ [Profile] Error fetching profile:", error);
+      // On error, use OAuth metadata as complete fallback
+      setProfile({
+        name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '',
+        email: user.email || '',
+        phone: '',
+        location: '',
+        role: '',
+        department: '',
+        joinDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+        bio: ''
+      });
     } finally {
       setLoading(false);
     }
