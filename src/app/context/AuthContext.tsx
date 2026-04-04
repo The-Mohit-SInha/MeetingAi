@@ -73,6 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       'Need help? Check QUICK_START.md or VERIFY_SETUP.md'
     );
 
+    // CHANGE 3: Add 3-second timeout safety net so loading can never be stuck forever
+    const safetyTimeout = setTimeout(() => setLoading(false), 3000);
+
     // Check active session with error handling
     supabase.auth
       .getSession()
@@ -80,46 +83,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (sessionError) {
           console.error('Failed to get session:', sessionError);
           setError(`Authentication error: ${sessionError.message}`);
+          clearTimeout(safetyTimeout);
           setLoading(false);
           return;
         }
 
-        // If there's a session, verify the user still exists in the DB
-        if (session?.user) {
-          try {
-            const { data: dbUser, error: dbError } = await supabase
-              .from('users')
-              .select('id')
-              .eq('id', session.user.id)
-              .maybeSingle();
-
-            if (!dbUser) {
-              console.warn('Session user not found in database — signing out stale session.');
-              await supabase.auth.signOut();
-              setSession(null);
-              setUser(null);
-              setLoading(false);
-              return;
-            }
-          } catch (err) {
-            console.error('Error verifying user in database:', err);
-            // FIX #1: Non-destructive fallback - don't sign out on DB hiccup
-            // Instead, use the existing session data and continue
-            console.warn('Database verification failed, but keeping user signed in with existing session');
-            setSession(session);
-            setUser(session.user);
-            setLoading(false);
-            return;
-          }
-        }
+        // CHANGE 1: No DB verification needed — trust Supabase JWT session as source of truth
 
         setSession(session);
         setUser(session?.user ?? null);
+        clearTimeout(safetyTimeout);
         setLoading(false);
       })
       .catch((err) => {
         console.error('Unexpected error getting session:', err);
         setError('Failed to connect to authentication service. Please check your internet connection.');
+        clearTimeout(safetyTimeout);
         setLoading(false);
       });
 
@@ -189,27 +168,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initializeUserStorage(user.id);
       return;
     }
-    const { user } = await authAPI.signIn(email, password);
     
-    // FIX #2: Ensure user exists in database after email/password sign in
-    // This prevents DB verification check from failing
-    try {
-      const userName = user.user_metadata?.name 
-        || user.email?.split('@')[0] 
-        || 'User';
-      
+    // CHANGE 2: Upsert user row on sign in to prevent race condition
+    const data = await authAPI.signIn(email, password);
+    if (data?.user) {
       await supabase.from('users').upsert({
-        id: user.id,
-        email: user.email || '',
-        name: userName,
+        id: data.user.id,
+        email: data.user.email || '',
+        name: data.user.user_metadata?.name || (data.user.email || '').split('@')[0],
         join_date: new Date().toISOString().split('T')[0],
       }, { onConflict: 'id', ignoreDuplicates: true });
-    } catch (err) {
-      console.error('Error upserting user profile during sign in:', err);
-      // Continue anyway - the user is authenticated
+      setUser(data.user);
     }
-    
-    setUser(user);
   };
 
   const signUp = async (email: string, password: string, name: string) => {
