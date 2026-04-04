@@ -1,134 +1,127 @@
-# Google Meet Integration - Quick Start
+# 🚀 Quick Start: Audio Transcription
 
-## 🚀 5-Minute Setup Guide
+Get audio transcription working in **under 2 minutes**!
 
-Follow these steps to get your Google Meet integration up and running quickly.
+## ⚡ Zero-Config Mode (Works Immediately)
 
----
+**No setup required!** The app works out of the box with local browser-based transcription.
 
-## Step 1: Get Google OAuth Credentials (5 minutes)
+1. Open the app
+2. Go to **Meetings** page
+3. Click **"Record Audio"**
+4. Choose **"Browser Tab"** or **"Microphone"**
+5. Start recording
+6. Stop when done
+7. **Transcript appears automatically!**
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or select existing)
-3. Enable these APIs:
-   - Google Calendar API
-   - Google+ API (for user info)
-4. Go to **Credentials** → **Create Credentials** → **OAuth client ID**
-5. Select **Web application**
-6. Add authorized redirect URIs:
-   ```
-   http://localhost:3000/auth/google-meet/callback
-   YOUR_PRODUCTION_URL/auth/google-meet/callback
-   ```
-7. Copy your **Client ID** and **Client Secret**
+That's it! The app uses local browser-based Whisper transcription (free, no API needed).
 
----
+## ⚡⚡ High-Quality Mode (2 minutes setup)
 
-## Step 2: Configure Environment Variables
+For **better transcription quality**, add a free Groq API key:
 
-### Frontend (.env file):
-```env
-VITE_GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE.apps.googleusercontent.com
-```
+### Step 1: Get Free API Key (30 seconds)
+1. Go to https://console.groq.com/
+2. Sign up (no credit card)
+3. Click **"API Keys"**
+4. Click **"Create API Key"**
+5. Copy the key (starts with `gsk_...`)
 
-### Supabase Edge Function Secrets:
-Go to Supabase Dashboard → Settings → Edge Functions → Secrets
+### Step 2: Add to Environment (30 seconds)
 
+**If using Supabase CLI:**
 ```bash
-GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE
-GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE
+supabase secrets set GROQ_API_KEY=gsk_your_key_here
 ```
 
----
-
-## Step 3: Deploy Edge Function
-
-The Edge Function is already created. Just deploy it:
-
-1. Go to your Supabase Dashboard
-2. Navigate to Edge Functions
-3. Find `google-meet-server`
-4. Click **Deploy**
-
-Or use CLI:
+**If using .env file:**
 ```bash
-supabase functions deploy google-meet-server
+echo "GROQ_API_KEY=gsk_your_key_here" >> supabase/.env
 ```
 
----
-
-## Step 4: Test the Integration
-
-### 4.1 Connect Your Google Account
-1. Sign in to your app
-2. Go to **Settings** → **Integrations**
-3. Click **Connect** on the Google Meet card
-4. Authorize with Google
-5. ✅ You should see "Connected" status
-
-### 4.2 Import Your First Meeting
-1. Click **Import** in the navigation
-2. Click **Refresh Meetings**
-3. Select a meeting and click **Import**
-4. ✅ Meeting should appear in your Meetings list
-
-### 4.3 Optional: Add AI Analysis
-Add Anthropic API key to Supabase secrets:
+### Step 3: Restart Server (30 seconds)
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...
+# Stop the dev server (Ctrl+C)
+# Start it again
+pnpm dev
 ```
 
-Then trigger AI analysis on imported meetings.
+### Step 4: Test It! (30 seconds)
+1. Refresh the app
+2. Open browser console (F12)
+3. Go to Meetings → Record Audio
+4. Look for: **"✅ Using Groq Whisper API"** in console
+
+**Done!** You now have professional-grade transcription.
 
 ---
 
-## Troubleshooting
+## 📊 Comparison
 
-### "Failed to connect"
-- ✅ Check `GOOGLE_CLIENT_ID` in frontend `.env`
-- ✅ Check `GOOGLE_CLIENT_SECRET` in Supabase secrets
-- ✅ Verify redirect URI matches exactly
+| Feature | Zero-Config | High-Quality |
+|---------|-------------|--------------|
+| Setup time | 0 seconds | 2 minutes |
+| Quality | Good ★★★☆☆ | Excellent ★★★★★ |
+| Speed | Medium (~30s) | Fast (~5s) |
+| Cost | Free | Free |
+| Works offline | ✅ Yes | ❌ No |
+| API key needed | ❌ No | ✅ Yes (free) |
 
-### "No meetings found"
-- ✅ Make sure you have Google Calendar events with Meet links
-- ✅ Events must be within ±30 days from today
-- ✅ Disconnect and reconnect if needed
+## 🎯 Usage Tips
 
-### Edge Function not working
-- ✅ Ensure Edge Runtime is enabled in `config.toml`
-- ✅ Redeploy the Edge Function
-- ✅ Check Supabase Function logs for errors
+### For Best Results:
+
+1. **Browser Tab Recording**:
+   - ✅ Use Chrome or Edge (best compatibility)
+   - ✅ Check "Share tab audio" in the picker
+   - ✅ Keep the tab active during recording
+   - ✅ Close other apps to reduce CPU usage
+
+2. **Microphone Recording**:
+   - ✅ Use a quiet environment
+   - ✅ Speak clearly and at normal pace
+   - ✅ Position mic 6-12 inches from mouth
+   - ✅ Grant microphone permission when prompted
+
+### Recording Google Meet, Zoom, etc:
+
+1. Start your meeting in one tab
+2. Open this app in another tab
+3. Click **"Record Audio"** → **"Browser Tab"**
+4. Select the meeting tab
+5. ✅ **Check "Share tab audio"**
+6. Record the entire meeting
+7. Get automatic transcript + AI summary!
+
+## 🐛 Troubleshooting
+
+### "No audio captured"
+- **Fix**: Make sure "Share tab audio" is checked when selecting the tab
+
+### "Share tab audio" option is missing
+- **Fix**: Use Chrome or Edge browser (Firefox doesn't support this yet)
+
+### Transcription is slow
+- **Fix**: Add Groq API key for 6x faster transcription
+
+### "Groq not configured" message
+- **Fix**: Add `GROQ_API_KEY` environment variable and restart server
+
+### Browser asks for permissions
+- **Fix**: Click "Allow" - this is normal for audio/screen capture
+
+## 📖 More Help
+
+- **Full setup guide**: See `GROQ_SETUP.md`
+- **Architecture details**: See `ARCHITECTURE.md`
+- **Implementation notes**: See `TRANSCRIPTION_IMPLEMENTATION.md`
+
+## 🎉 You're Ready!
+
+Start recording meetings and get automatic transcripts!
+
+Questions? Check the browser console (F12) for detailed logs.
 
 ---
 
-## What's Next?
-
-1. **Explore Features:**
-   - Import multiple meetings
-   - View meeting details
-   - Check participant analytics
-   - Review AI-generated action items
-
-2. **Customize Settings:**
-   - Auto-join meetings toggle
-   - Video/chat capture preferences
-   - Notification settings
-
-3. **Share Feedback:**
-   - Test all workflows
-   - Report any issues
-   - Suggest improvements
-
----
-
-## Support
-
-- 📖 Full Setup Guide: `GOOGLE_MEET_SETUP_GUIDE.md`
-- 📋 Implementation Details: `IMPLEMENTATION_SUMMARY.md`
-- 🐛 Issues: Check Edge Function logs in Supabase Dashboard
-
----
-
-**You're all set!** 🎉
-
-Start importing meetings and let the AI handle the rest.
+**Pro Tip**: With Groq API configured, you get 14,400 free transcriptions per day. That's ~50 hours of meetings daily - more than you'll ever need! 🚀

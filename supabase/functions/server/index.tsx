@@ -258,6 +258,80 @@ ${rawTranscript}`,
   }
 });
 
+// Groq Whisper transcription endpoint
+app.post("/make-server-af44c8dd/api/transcribe", async (c) => {
+  try {
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
+
+    if (!groqApiKey) {
+      return c.json({
+        error: "Groq API key not configured. Please add GROQ_API_KEY to your environment variables."
+      }, 500);
+    }
+
+    // Get the uploaded file from FormData
+    const formData = await c.req.formData();
+    const audioFile = formData.get('file') as File;
+    const model = formData.get('model') as string || 'whisper-large-v3-turbo';
+    const language = formData.get('language') as string || 'en';
+    const temperature = parseFloat(formData.get('temperature') as string || '0');
+    const responseFormat = formData.get('response_format') as string || 'verbose_json';
+
+    if (!audioFile) {
+      return c.json({ error: "No audio file provided" }, 400);
+    }
+
+    console.log('🎯 Transcription request:', {
+      model,
+      language,
+      size: `${(audioFile.size / 1024 / 1024).toFixed(2)} MB`,
+      type: audioFile.type,
+    });
+
+    // Forward to Groq API
+    const groqFormData = new FormData();
+    groqFormData.append('file', audioFile, 'audio.webm');
+    groqFormData.append('model', model);
+    groqFormData.append('language', language);
+    groqFormData.append('temperature', temperature.toString());
+    groqFormData.append('response_format', responseFormat);
+
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqApiKey}`,
+      },
+      body: groqFormData,
+    });
+
+    if (!groqResponse.ok) {
+      const errorText = await groqResponse.text();
+      console.error('Groq API error:', errorText);
+      return c.json({
+        error: `Groq API error: ${groqResponse.status} - ${errorText}`
+      }, groqResponse.status);
+    }
+
+    const result = await groqResponse.json();
+    console.log('✅ Transcription complete:', result.text?.substring(0, 100) + '...');
+
+    return c.json(result);
+  } catch (err: any) {
+    console.error('Transcription error:', err);
+    return c.json({ error: err.message || 'Transcription failed' }, 500);
+  }
+});
+
+// Health check for transcription service
+app.get("/make-server-af44c8dd/api/transcribe/health", (c) => {
+  const groqApiKey = Deno.env.get('GROQ_API_KEY');
+  return c.json({
+    configured: !!groqApiKey,
+    service: 'groq-whisper',
+    model: 'whisper-large-v3-turbo',
+  });
+});
+
 // Return 404 for all other routes
 app.all("*", (c) => {
   return c.json({ error: "Not found" }, 404);

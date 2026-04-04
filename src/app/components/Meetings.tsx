@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Video, 
-  Plus, 
-  Search, 
-  Filter, 
+import {
+  Video,
+  Plus,
+  Search,
+  Filter,
   Calendar as CalendarIcon,
   Clock,
   Users,
@@ -31,6 +31,8 @@ import { recordingsAPI } from "../services/apiWrapper";
 import { aiProcessingService } from "../services/googleMeetService";
 import { supabase } from "../../lib/supabase";
 import { transcribeAudioBlob } from "../services/localTranscriptionService";
+import { transcribeWithGroq, isGroqConfigured } from "../services/groqTranscriptionService";
+import { TranscriptionTestPanel } from "./TranscriptionTestPanel";
 
 export function Meetings() {
   const { theme, compactMode } = useTheme();
@@ -72,6 +74,7 @@ export function Meetings() {
   const [selectedSource, setSelectedSource] = useState<'tab' | 'microphone'>('tab');
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
+  const [groqConfigured, setGroqConfigured] = useState(false);
 
   // Ref to accumulate transcript in real-time (avoids stale closure issues)
   const transcriptRef = useRef('');
@@ -81,6 +84,8 @@ export function Meetings() {
   useEffect(() => {
     if (user) {
       fetchMeetings();
+      // Check if Groq is configured
+      isGroqConfigured().then(setGroqConfigured);
     }
   }, [user]);
 
@@ -428,30 +433,78 @@ export function Meetings() {
       const title = recordingTitle || `${sourceLabel} - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
 
       // For mic mode: read transcript from ref.
-      // For tab mode: transcribe locally using Whisper in the browser.
+      // For tab mode: transcribe using Groq API (or fallback to local Whisper).
       let finalTranscript = '';
       if (isMic) {
         finalTranscript = transcriptRef.current?.trim() || transcript?.trim() || '';
       } else if (isTab) {
         const finalBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        console.log('📊 Audio blob details:', {
+          size: `${(finalBlob.size / 1024 / 1024).toFixed(2)} MB`,
+          type: finalBlob.type,
+          chunks: audioChunks.length,
+          groqConfigured,
+        });
+
         if (finalBlob.size > 0) {
           try {
-            setTranscriptionProgress('Loading AI model (first time may take a moment)...');
-            finalTranscript = await transcribeAudioBlob(
-              finalBlob,
-              (progress) => {
-                setTranscriptionProgress(`Downloading model: ${Math.round(progress * 100)}%`);
-              },
-              (loading) => {
-                if (!loading) setTranscriptionProgress('Transcribing audio...');
-              },
-            );
-            setTranscriptionProgress('');
-            setTranscript(finalTranscript);
+            // Refresh Groq configuration status before transcribing
+            const isConfigured = await isGroqConfigured();
+            console.log('🔍 Groq configuration check:', isConfigured);
+
+            // Try Groq first if configured (free tier, high quality)
+            if (isConfigured) {
+              setTranscriptionProgress('🎯 Transcribing with Groq Whisper API...');
+              console.log('🎯 Using Groq Whisper API for transcription');
+              finalTranscript = await transcribeWithGroq(finalBlob, {
+                language: 'en',
+                temperature: 0,
+              });
+              setTranscriptionProgress('');
+              setTranscript(finalTranscript);
+              console.log('✅ Groq transcription complete:', finalTranscript.length, 'chars');
+            } else {
+              // Fallback to local browser-based Whisper
+              setTranscriptionProgress('Loading AI model (first time may take a moment)...');
+              console.log('⚠️ Groq not configured, falling back to local Whisper');
+              finalTranscript = await transcribeAudioBlob(
+                finalBlob,
+                (progress) => {
+                  setTranscriptionProgress(`Downloading model: ${Math.round(progress * 100)}%`);
+                },
+                (loading) => {
+                  if (!loading) setTranscriptionProgress('Transcribing audio...');
+                },
+              );
+              setTranscriptionProgress('');
+              setTranscript(finalTranscript);
+            }
           } catch (transcribeErr: any) {
-            console.error('⚠️ Local transcription failed:', transcribeErr);
+            console.error('⚠️ Transcription failed:', transcribeErr);
             setTranscriptionProgress('');
             finalTranscript = '';
+            // If Groq fails, try local fallback
+            if (groqConfigured && transcribeErr.message?.includes('Groq')) {
+              try {
+                console.log('🔄 Groq failed, trying local Whisper fallback...');
+                setTranscriptionProgress('Loading local model...');
+                finalTranscript = await transcribeAudioBlob(
+                  finalBlob,
+                  (progress) => {
+                    setTranscriptionProgress(`Downloading model: ${Math.round(progress * 100)}%`);
+                  },
+                  (loading) => {
+                    if (!loading) setTranscriptionProgress('Transcribing audio...');
+                  },
+                );
+                setTranscriptionProgress('');
+                setTranscript(finalTranscript);
+                console.log('✅ Local fallback transcription complete');
+              } catch (fallbackErr: any) {
+                console.error('❌ Both Groq and local transcription failed:', fallbackErr);
+                setTranscriptionProgress('');
+              }
+            }
           }
         }
       }
@@ -1148,7 +1201,11 @@ export function Meetings() {
                     <li>Audio is captured directly from the tab's stream — no microphone needed</li>
                   </ol>
                   <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-blue-400/80' : 'text-blue-600'}`}>
-                    Audio is captured directly from the tab — no microphone needed. Transcription runs locally in your browser after recording (free, powered by Whisper AI).
+                    {groqConfigured ? (
+                      <>✨ Transcription powered by <strong>Groq Whisper API</strong> (free, high-quality)</>
+                    ) : (
+                      <>Transcription runs locally in your browser (free, powered by Whisper AI). For better quality, add GROQ_API_KEY to your environment.</>
+                    )}
                   </p>
                 </motion.div>
               )}
@@ -1317,6 +1374,9 @@ export function Meetings() {
       </AnimatePresence>,
       document.body
       )}
+
+      {/* Transcription Test Panel - Remove this after testing */}
+      <TranscriptionTestPanel />
     </div>
   );
 }
