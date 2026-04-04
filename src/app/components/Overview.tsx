@@ -30,6 +30,12 @@ export function Overview() {
       try {
         setLoading(true);
 
+        // Set a timeout to prevent infinite loading
+        const timeoutId = setTimeout(() => {
+          console.warn('Dashboard data fetch timeout - using default values');
+          setLoading(false);
+        }, 5000);
+
         // Fetch meetings stats
         const meetingStats = await analyticsAPI.getMeetingStats(user.id);
 
@@ -103,8 +109,10 @@ export function Overview() {
 
         setActionData(weeklyActionData);
 
+        clearTimeout(timeoutId);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
+        // Still show the dashboard even if data fetch fails
       } finally {
         setLoading(false);
       }
