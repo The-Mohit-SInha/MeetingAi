@@ -86,14 +86,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // If there's a session, verify the user still exists in the DB
         if (session?.user) {
-          const { data: dbUser, error: dbError } = await supabase
-            .from('users')
-            .select('id')
-            .eq('id', session.user.id)
-            .maybeSingle();
+          try {
+            const { data: dbUser, error: dbError } = await supabase
+              .from('users')
+              .select('id')
+              .eq('id', session.user.id)
+              .maybeSingle();
 
-          if (!dbUser) {
-            console.warn('Session user not found in database — signing out stale session.');
+            if (!dbUser) {
+              console.warn('Session user not found in database — signing out stale session.');
+              await supabase.auth.signOut();
+              setSession(null);
+              setUser(null);
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.error('Error verifying user in database:', err);
+            // If DB check fails, clear the session to be safe
             await supabase.auth.signOut();
             setSession(null);
             setUser(null);

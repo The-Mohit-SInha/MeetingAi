@@ -3,7 +3,7 @@ import { projectId, publicAnonKey } from '../../../utils/supabase/info';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/meetings.space.readonly',
+  'https://www.googleapis.com/auth/calendar.events.readonly',
   'https://www.googleapis.com/auth/calendar.readonly',
   'openid', 'email', 'profile'
 ].join(' ');

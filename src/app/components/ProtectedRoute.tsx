@@ -38,7 +38,21 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#FFF8F0] via-[#FFF5EB] to-[#FFE4CC]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-purple-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600 mb-6">Loading...</p>
+          <button
+            onClick={async () => {
+              // Clear all session data
+              localStorage.clear();
+              sessionStorage.clear();
+              if (isConfigured) {
+                await supabase.auth.signOut();
+              }
+              window.location.href = '/login';
+            }}
+            className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 underline transition-colors"
+          >
+            Taking too long? Clear session
+          </button>
         </div>
       </div>
     );
