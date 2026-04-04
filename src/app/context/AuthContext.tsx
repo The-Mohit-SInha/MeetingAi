@@ -103,10 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           } catch (err) {
             console.error('Error verifying user in database:', err);
-            // If DB check fails, clear the session to be safe
-            await supabase.auth.signOut();
-            setSession(null);
-            setUser(null);
+            // FIX #1: Non-destructive fallback - don't sign out on DB hiccup
+            // Instead, use the existing session data and continue
+            console.warn('Database verification failed, but keeping user signed in with existing session');
+            setSession(session);
+            setUser(session.user);
             setLoading(false);
             return;
           }
@@ -189,6 +190,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     const { user } = await authAPI.signIn(email, password);
+    
+    // FIX #2: Ensure user exists in database after email/password sign in
+    // This prevents DB verification check from failing
+    try {
+      const userName = user.user_metadata?.name 
+        || user.email?.split('@')[0] 
+        || 'User';
+      
+      await supabase.from('users').upsert({
+        id: user.id,
+        email: user.email || '',
+        name: userName,
+        join_date: new Date().toISOString().split('T')[0],
+      }, { onConflict: 'id', ignoreDuplicates: true });
+    } catch (err) {
+      console.error('Error upserting user profile during sign in:', err);
+      // Continue anyway - the user is authenticated
+    }
+    
     setUser(user);
   };
 
