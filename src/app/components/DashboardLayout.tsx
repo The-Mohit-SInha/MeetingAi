@@ -1,16 +1,33 @@
-import { Video, Bell, LogOut, Moon, Sun, LayoutDashboard, CheckSquare, Calendar as CalendarIcon, BarChart3, Users, Settings as SettingsIcon } from "lucide-react";
+import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
+import { 
+  LayoutDashboard, 
+  Calendar as CalendarIcon, 
+  CheckSquare, 
+  Users, 
+  BarChart3, 
+  Video,
+  Search,
+  Bell,
+  Settings as SettingsIcon,
+  Sparkles,
+  Moon,
+  Sun,
+  LogOut,
+  Download
+} from "lucide-react";
 import { useState, useEffect } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router";
-import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 import { useLiveMeeting } from "../context/LiveMeetingContext";
 import { userAPI } from "../services/apiWrapper";
+import { GoogleMeetOnboardingModal } from "./GoogleMeetOnboarding";
 import { LiveMeetingBanner } from "./LiveMeetingBanner";
 
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
   { name: "Meetings", href: "/meetings", icon: Video },
+  { name: "Import", href: "/import-google-meet", icon: Download },
   { name: "Action Items", href: "/actions", icon: CheckSquare },
   { name: "Calendar", href: "/calendar", icon: CalendarIcon },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
@@ -24,6 +41,7 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const { liveMeeting, elapsedSeconds, showPanel, setShowPanel } = useLiveMeeting();
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -50,6 +68,11 @@ export function DashboardLayout() {
     };
 
     fetchUserProfile();
+
+    const hasSeenOnboarding = localStorage.getItem('gmeet_onboarding_done');
+    if (!hasSeenOnboarding) {
+      setShowOnboarding(true);
+    }
   }, [user]);
 
   const isActive = (href: string) => {
@@ -301,6 +324,15 @@ export function DashboardLayout() {
           <Outlet />
         </motion.div>
       </motion.div>
+
+      {/* Google Meet Onboarding Modal */}
+      <GoogleMeetOnboardingModal
+        open={showOnboarding}
+        onClose={() => {
+          setShowOnboarding(false);
+          localStorage.setItem('gmeet_onboarding_done', 'true');
+        }}
+      />
     </div>
   );
 }

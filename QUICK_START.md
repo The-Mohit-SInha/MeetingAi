@@ -1,91 +1,134 @@
-# 🚀 Quick Start Guide - Supabase Integration
+# Google Meet Integration - Quick Start
 
-Your Supabase credentials are already configured! Just one more step to get your cloud database running.
+## 🚀 5-Minute Setup Guide
 
-## ⚡ Quick Setup (2 minutes)
-
-### Step 1: Run the Database Setup Script
-
-1. **Open Supabase SQL Editor**
-   - Click here: https://supabase.com/dashboard/project/qjrmxudyrwcqwpkmrggn/sql/new
-   
-2. **Run the Setup Script**
-   - Open the file `SETUP_DATABASE.sql` in your project
-   - Copy ALL the content (it's a long file - make sure you get everything!)
-   - Paste it into the SQL Editor
-   - Click the **"Run"** button
-
-3. **Wait for Completion**
-   - You should see: "Success. No rows returned"
-   - This means all tables were created successfully! ✅
-
-### Step 2: Restart Your Dev Server
-
-```bash
-# Stop your current server (Ctrl+C or Cmd+C)
-# Then restart it
-npm run dev
-```
-
-### Step 3: Test Your App
-
-1. Open your app in the browser
-2. Sign up with a new account (or use demo login)
-3. Create a meeting or action item
-4. **Log out and log back in** - your data should still be there! 🎉
-
-## ✅ Verification Checklist
-
-- [ ] SQL script executed successfully (no errors)
-- [ ] Development server restarted
-- [ ] Can sign up / sign in
-- [ ] Created test data (meeting or action item)
-- [ ] Data persists after logout/login
-- [ ] Green "Connected to Cloud Database" banner appears
-
-## 🔍 View Your Data
-
-After setup, you can view your data at:
-- **Tables**: https://supabase.com/dashboard/project/qjrmxudyrwcqwpkmrggn/database/tables
-- **Users**: https://supabase.com/dashboard/project/qjrmxudyrwcqwpkmrggn/auth/users
-
-## 🎯 What's Configured
-
-✅ **Frontend** (Already Done)
-- Supabase URL: `https://qjrmxudyrwcqwpkmrggn.supabase.co`
-- Anon Key: Configured in `.env.local`
-- Client library: Ready to use
-
-✅ **Backend** (Already Done)
-- Service Role Key: Configured in `.env.local`
-- Edge Functions: Ready (if needed)
-
-⏳ **Database** (You Need to Run the SQL Script)
-- Tables: Will be created when you run `SETUP_DATABASE.sql`
-- Security: Row Level Security policies included
-- Indexes: Performance optimizations included
-
-## 🐛 Troubleshooting
-
-### "relation 'users' does not exist"
-**Fix**: You haven't run the SQL script yet. Go back to Step 1.
-
-### Still showing "Using Local Storage Only"
-**Fix**: 
-1. Make sure SQL script ran successfully
-2. Restart your dev server
-3. Clear browser cache and reload
-
-### "Failed to fetch" or network errors
-**Fix**:
-1. Check your internet connection
-2. Verify Supabase project is active at: https://supabase.com/dashboard/project/qjrmxudyrwcqwpkmrggn
-3. Check browser console for specific error messages
-
-## 📚 Need More Details?
-
-See `SUPABASE_SETUP_COMPLETE.md` for comprehensive documentation.
+Follow these steps to get your Google Meet integration up and running quickly.
 
 ---
 
-**That's it! Your app is now connected to Supabase!** 🎊
+## Step 1: Get Google OAuth Credentials (5 minutes)
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project (or select existing)
+3. Enable these APIs:
+   - Google Calendar API
+   - Google+ API (for user info)
+4. Go to **Credentials** → **Create Credentials** → **OAuth client ID**
+5. Select **Web application**
+6. Add authorized redirect URIs:
+   ```
+   http://localhost:3000/auth/google-meet/callback
+   YOUR_PRODUCTION_URL/auth/google-meet/callback
+   ```
+7. Copy your **Client ID** and **Client Secret**
+
+---
+
+## Step 2: Configure Environment Variables
+
+### Frontend (.env file):
+```env
+VITE_GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE.apps.googleusercontent.com
+```
+
+### Supabase Edge Function Secrets:
+Go to Supabase Dashboard → Settings → Edge Functions → Secrets
+
+```bash
+GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE
+GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE
+```
+
+---
+
+## Step 3: Deploy Edge Function
+
+The Edge Function is already created. Just deploy it:
+
+1. Go to your Supabase Dashboard
+2. Navigate to Edge Functions
+3. Find `google-meet-server`
+4. Click **Deploy**
+
+Or use CLI:
+```bash
+supabase functions deploy google-meet-server
+```
+
+---
+
+## Step 4: Test the Integration
+
+### 4.1 Connect Your Google Account
+1. Sign in to your app
+2. Go to **Settings** → **Integrations**
+3. Click **Connect** on the Google Meet card
+4. Authorize with Google
+5. ✅ You should see "Connected" status
+
+### 4.2 Import Your First Meeting
+1. Click **Import** in the navigation
+2. Click **Refresh Meetings**
+3. Select a meeting and click **Import**
+4. ✅ Meeting should appear in your Meetings list
+
+### 4.3 Optional: Add AI Analysis
+Add Anthropic API key to Supabase secrets:
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Then trigger AI analysis on imported meetings.
+
+---
+
+## Troubleshooting
+
+### "Failed to connect"
+- ✅ Check `GOOGLE_CLIENT_ID` in frontend `.env`
+- ✅ Check `GOOGLE_CLIENT_SECRET` in Supabase secrets
+- ✅ Verify redirect URI matches exactly
+
+### "No meetings found"
+- ✅ Make sure you have Google Calendar events with Meet links
+- ✅ Events must be within ±30 days from today
+- ✅ Disconnect and reconnect if needed
+
+### Edge Function not working
+- ✅ Ensure Edge Runtime is enabled in `config.toml`
+- ✅ Redeploy the Edge Function
+- ✅ Check Supabase Function logs for errors
+
+---
+
+## What's Next?
+
+1. **Explore Features:**
+   - Import multiple meetings
+   - View meeting details
+   - Check participant analytics
+   - Review AI-generated action items
+
+2. **Customize Settings:**
+   - Auto-join meetings toggle
+   - Video/chat capture preferences
+   - Notification settings
+
+3. **Share Feedback:**
+   - Test all workflows
+   - Report any issues
+   - Suggest improvements
+
+---
+
+## Support
+
+- 📖 Full Setup Guide: `GOOGLE_MEET_SETUP_GUIDE.md`
+- 📋 Implementation Details: `IMPLEMENTATION_SUMMARY.md`
+- 🐛 Issues: Check Edge Function logs in Supabase Dashboard
+
+---
+
+**You're all set!** 🎉
+
+Start importing meetings and let the AI handle the rest.
