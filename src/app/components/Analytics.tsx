@@ -33,6 +33,12 @@ export function Analytics() {
     try {
       setLoading(true);
 
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Analytics data fetch timeout - using default values');
+        setLoading(false);
+      }, 5000);
+
       const monthTrends = await analyticsAPI.getMeetingTrends(user.id);
       setMeetingsByMonth(monthTrends.map((m: any, i: number) => ({
         month: new Date(m.month).toLocaleDateString('en-US', { month: 'short' }),
@@ -72,6 +78,8 @@ export function Analytics() {
           : 0,
         totalParticipants: engagement.length,
       });
+
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error("Error fetching analytics:", error);
     } finally {

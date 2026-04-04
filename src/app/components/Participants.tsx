@@ -33,6 +33,13 @@ export function Participants() {
     
     try {
       setLoading(true);
+
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Participants data fetch timeout - using default values');
+        setLoading(false);
+      }, 5000);
+
       const data = await participantsAPI.getAll(user.id);
 
       // Group by participant name and aggregate stats
@@ -61,6 +68,7 @@ export function Participants() {
       });
 
       setParticipants(Array.from(participantMap.values()));
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error("Error fetching participants:", error);
       setParticipants([]);

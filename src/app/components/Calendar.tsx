@@ -47,6 +47,13 @@ export function Calendar() {
     
     try {
       setLoading(true);
+
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Calendar data fetch timeout - using default values');
+        setLoading(false);
+      }, 5000);
+
       const data = await meetingsAPI.getAll(user.id);
       setMeetings(data.map((m: any) => ({
         id: m.id,
@@ -57,6 +64,8 @@ export function Calendar() {
         participants: 0,
         type: 'one-time',
       })));
+
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error("Error fetching meetings:", error);
       setMeetings([]);

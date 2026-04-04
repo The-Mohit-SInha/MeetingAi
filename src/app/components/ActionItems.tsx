@@ -40,6 +40,13 @@ export function ActionItems() {
     
     try {
       setLoading(true);
+
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Action items data fetch timeout - using default values');
+        setLoading(false);
+      }, 5000);
+
       const data = await actionItemsAPI.getAll(user.id);
       setActionItems(data.map((item: any) => ({
         ...item,
@@ -53,6 +60,8 @@ export function ActionItems() {
         meetingId: item.meeting_id,
         dueDate: item.due_date,
       })));
+
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error("Error fetching action items:", error);
       setActionItems([]);

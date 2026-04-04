@@ -122,6 +122,13 @@ export function Settings() {
     
     try {
       setLoading(true);
+
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Settings data fetch timeout - using default values');
+        setLoading(false);
+      }, 5000);
+
       const data = await settingsAPI.get(user.id);
 
       setSettings({
@@ -147,6 +154,8 @@ export function Settings() {
       if (data.compact_mode !== undefined && data.compact_mode !== compactMode) {
         toggleCompactMode();
       }
+
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error("Error fetching settings:", error);
     } finally {

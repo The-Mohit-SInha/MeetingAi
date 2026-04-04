@@ -63,6 +63,13 @@ export function Meetings() {
     
     try {
       setLoading(true);
+
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Meetings data fetch timeout - using default values');
+        setLoading(false);
+      }, 5000);
+
       const data = await meetingsAPI.getAll(user.id);
 
       // Fetch participants for each meeting
@@ -117,6 +124,8 @@ export function Meetings() {
         totalHours: parseFloat((totalMinutes / 60).toFixed(1)),
         participants: uniqueParticipants.size,
       });
+
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error("Error fetching meetings:", error);
       setMeetings([]);

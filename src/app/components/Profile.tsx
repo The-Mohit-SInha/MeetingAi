@@ -51,6 +51,13 @@ export function Profile() {
 
     try {
       setLoading(true);
+
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Profile data fetch timeout - using default values');
+        setLoading(false);
+      }, 5000);
+
       const userData = await userAPI.getProfile(user.id);
 
       console.log('✅ [Profile] Got user data:', userData);
@@ -65,6 +72,8 @@ export function Profile() {
         joinDate: new Date(userData.join_date || userData.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
         bio: userData.bio || ''
       });
+
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error("❌ [Profile] Error fetching profile:", error);
     } finally {
@@ -78,6 +87,11 @@ export function Profile() {
     console.log('🔍 [Profile] Fetching stats for user:', user.id, user.email);
 
     try {
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Profile stats fetch timeout - using default values');
+      }, 5000);
+
       // Fetch all meetings and count user's participation
       const allMeetings = await meetingsAPI.getAll(user.id);
       console.log('📊 [Profile] Found meetings:', allMeetings.length);
@@ -111,6 +125,8 @@ export function Profile() {
         actions: totalActions,
         completionRate,
       });
+
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error("❌ [Profile] Error fetching profile stats:", error);
       setProfileStats({ meetings: 0, actions: 0, completionRate: 0 });

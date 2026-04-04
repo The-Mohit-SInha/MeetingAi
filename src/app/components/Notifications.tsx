@@ -27,6 +27,13 @@ export function Notifications() {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
+
+      // Set a timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.warn('Notifications data fetch timeout - using default values');
+        setLoading(false);
+      }, 5000);
+
       const data = await notificationsAPI.getAll();
 
       const iconMap: any = {
@@ -52,6 +59,8 @@ export function Notifications() {
         time: new Date(n.created_at).toLocaleString(),
         isRead: n.is_read,
       })));
+
+      clearTimeout(timeoutId);
     } catch (error) {
       console.error("Error fetching notifications:", error);
       setNotifications([]);
