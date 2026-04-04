@@ -25,7 +25,7 @@ import {
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { useLiveMeeting } from "../context/LiveMeetingContext";
-import { meetingsAPI, participantsAPI } from "../services/apiWrapper";
+import { meetingsAPI } from "../services/apiWrapper";
 import { googleMeetOAuth } from "../services/googleMeetService";
 
 export function Meetings() {
@@ -56,14 +56,18 @@ export function Meetings() {
 
   // Tab Recording States
   const [showRecordingModal, setShowRecordingModal] = useState(false);
+  const [recordingStep, setRecordingStep] = useState<'select' | 'recording' | 'processing'>('select');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [recognition, setRecognition] = useState<any>(null);
+  const [speechRecognition, setSpeechRecognition] = useState<any>(null);
   const [recordingTitle, setRecordingTitle] = useState("");
   const [processingRecording, setProcessingRecording] = useState(false);
+  const [selectedSource, setSelectedSource] = useState<'tab' | 'microphone'>('tab');
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -86,28 +90,23 @@ export function Meetings() {
 
       const data = await meetingsAPI.getAll(user.id);
 
-      // Fetch participants for each meeting
-      const meetingsWithParticipants = await Promise.all(
-        data.map(async (meeting: any) => {
-          const participants = await participantsAPI.getByMeeting(meeting.id, user.id);
-          return {
-            ...meeting,
-            participants: participants.map((p: any) => ({
-              name: p.participant_name,
-              avatar: p.participant_name.split(' ').map((n: string) => n[0]).join(''),
-              color: `bg-${['blue', 'green', 'purple', 'orange', 'pink'][Math.floor(Math.random() * 5)]}-500`,
-            })),
-            actions: 0,
-            completed: 0,
-            tags: [],
-          };
-        })
-      );
+      // Map meetings with default participant/action fields
+      const meetingsWithDefaults = data.map((meeting: any) => ({
+        ...meeting,
+        participants: (meeting.participants || []).map((p: any) => ({
+          name: p.participant_name || p.name || 'Unknown',
+          avatar: (p.participant_name || p.name || '?').split(' ').map((n: string) => n[0]).join(''),
+          color: `bg-${['blue', 'green', 'purple', 'orange', 'pink'][Math.floor(Math.random() * 5)]}-500`,
+        })),
+        actions: 0,
+        completed: 0,
+        tags: meeting.tags || [],
+      }));
 
-      setMeetings(meetingsWithParticipants);
+      setMeetings(meetingsWithDefaults);
 
       // Calculate stats from actual data
-      const totalMeetings = meetingsWithParticipants.length;
+      const totalMeetings = meetingsWithDefaults.length;
       const uniqueParticipants = new Set();
       let totalMinutes = 0;
       let thisWeekCount = 0;
@@ -115,7 +114,7 @@ export function Meetings() {
       const now = new Date();
       const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      meetingsWithParticipants.forEach((meeting: any) => {
+      meetingsWithDefaults.forEach((meeting: any) => {
         // Count participants
         meeting.participants.forEach((p: any) => uniqueParticipants.add(p.name));
 
@@ -161,7 +160,8 @@ export function Meetings() {
         transcript: null,
         location: null,
         recording_url: null,
-      });
+        user_id: user?.id,
+      }, newMeeting.participants ? newMeeting.participants.split(',').map(p => p.trim()).filter(p => p) : []);
 
       setShowNewMeetingModal(false);
       setNewMeeting({
@@ -198,153 +198,166 @@ export function Meetings() {
 
   const startTabRecording = async () => {
     try {
-      console.log('🎙️ Requesting tab audio capture...');
-      
-      // Request display media with audio
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: false,
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 44100,
-        } as any,
-      });
+      setTranscript('');
+      setAudioChunks([]);
+      setRecordedAudioBlob(null);
 
-      console.log('✅ Tab audio captured!');
-      setMediaStream(stream);
+      if (selectedSource === 'tab') {
+        // ── Tab Audio: capture directly from the browser tab via getDisplayMedia ──
+        console.log('🖥️ Starting tab audio capture via getDisplayMedia...');
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        } as any);
 
-      // Initialize Web Speech API for transcription
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      
-      if (SpeechRecognition) {
-        const recognitionInstance = new SpeechRecognition();
-        recognitionInstance.continuous = true;
-        recognitionInstance.interimResults = true;
-        recognitionInstance.lang = 'en-US';
+        const audioTracks = displayStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          displayStream.getTracks().forEach(t => t.stop());
+          throw new Error('No audio track captured. Make sure to check "Share tab audio" in the sharing dialog.');
+        }
+        console.log('✅ Got tab audio tracks:', audioTracks.length);
 
-        recognitionInstance.onresult = (event: any) => {
-          let interimTranscript = '';
-          let finalTranscript = '';
+        setMediaStream(displayStream);
 
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcriptPiece = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-              finalTranscript += transcriptPiece + ' ';
-            } else {
-              interimTranscript += transcriptPiece;
-            }
-          }
+        // Auto-stop when user clicks "Stop sharing" in the browser bar
+        displayStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+          console.log('🛑 User stopped sharing via browser UI');
+          stopTabRecording();
+        });
 
-          setTranscript((prev) => {
-            const updated = prev + finalTranscript;
-            return updated;
-          });
-        };
+        // Record the tab's audio stream directly (no mic needed)
+        const audioOnlyStream = new MediaStream(audioTracks);
+        const recorder = new MediaRecorder(audioOnlyStream, {
+          mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus' : 'audio/webm',
+        });
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) { chunks.push(e.data); setAudioChunks(prev => [...prev, e.data]); } };
+        recorder.onstop = () => { setRecordedAudioBlob(new Blob(chunks, { type: 'audio/webm' })); };
+        recorder.start(1000);
+        setMediaRecorder(recorder);
 
-        recognitionInstance.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error);
-        };
+        // No Web Speech API here – it cannot consume an arbitrary audio stream.
+        // Transcript stays empty; the raw audio blob is saved instead.
 
-        recognitionInstance.start();
-        setRecognition(recognitionInstance);
-        console.log('🎤 Speech recognition started');
       } else {
-        console.warn('⚠️ Web Speech API not supported. Transcription will not be available.');
+        // ── Microphone: record the user's voice + live transcription via Web Speech API ──
+        console.log('🎙️ Starting microphone recording via getUserMedia...');
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        setMediaStream(micStream);
+
+        const recorder = new MediaRecorder(micStream, {
+          mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus' : 'audio/webm',
+        });
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) { chunks.push(e.data); setAudioChunks(prev => [...prev, e.data]); } };
+        recorder.onstop = () => { setRecordedAudioBlob(new Blob(chunks, { type: 'audio/webm' })); };
+        recorder.start(1000);
+        setMediaRecorder(recorder);
+
+        // Real-time transcription with Web Speech API (works with mic input)
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRecognition) {
+          const recognition = new SpeechRecognition();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = 'en-US';
+          recognition.maxAlternatives = 1;
+
+          let finalT = '';
+          let interimT = '';
+          recognition.onresult = (event: any) => {
+            interimT = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const seg = event.results[i][0].transcript;
+              if (event.results[i].isFinal) { finalT += seg + ' '; } else { interimT += seg; }
+            }
+            setTranscript(finalT + interimT);
+          };
+          recognition.onerror = (event: any) => { console.warn('⚠️ Speech recognition error:', event.error); };
+          recognition.onend = () => { try { recognition.start(); } catch (_) {} };
+
+          recognition.start();
+          setSpeechRecognition(recognition);
+          console.log('✅ Web Speech API started');
+        }
       }
 
-      // Start MediaRecorder
-      const recorder = new MediaRecorder(stream);
-      const audioChunks: Blob[] = [];
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
-      };
-
-      recorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        console.log('🎵 Audio recording stopped. Size:', audioBlob.size);
-      };
-
-      recorder.start();
-      setMediaRecorder(recorder);
       setIsRecording(true);
       setRecordingTime(0);
-      console.log('📹 Media recorder started');
+      setRecordingStep('recording');
+
     } catch (error: any) {
-      console.error('❌ Error starting tab recording:', error);
-      alert(`Failed to capture tab audio: ${error.message}\n\nPlease make sure you:\n1. Select a tab (not entire screen)\n2. Check "Share tab audio" in the dialog\n3. Grant permission to capture audio`);
+      console.error('❌ Error starting recording:', error);
+      let msg = 'Failed to start recording.\n\n';
+      if (error.name === 'NotAllowedError') {
+        msg += selectedSource === 'tab'
+          ? 'You cancelled the tab selection or denied permission.'
+          : 'Microphone permission was denied.';
+      } else { msg += error.message || 'Unknown error'; }
+      alert(msg);
     }
   };
 
   const stopTabRecording = async () => {
     try {
       console.log('🛑 Stopping recording...');
+      setIsRecording(false);
+      setRecordingStep('processing');
       setProcessingRecording(true);
 
-      // Stop media recorder
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-      }
+      if (speechRecognition) { speechRecognition.stop(); setSpeechRecognition(null); }
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') { mediaRecorder.stop(); }
+      if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); setMediaStream(null); }
 
-      // Stop speech recognition
-      if (recognition) {
-        recognition.stop();
-      }
+      await new Promise(r => setTimeout(r, 500));
 
-      // Stop all tracks in the media stream
-      if (mediaStream) {
-        mediaStream.getTracks().forEach((track) => track.stop());
-      }
+      const finalTranscript = transcript?.trim() || '';
+      const isMic = selectedSource === 'microphone';
+      const sourceLabel = isMic ? 'Voice Recording' : 'Tab Recording';
+      const now = new Date();
+      const title = recordingTitle || `${sourceLabel} - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
 
-      setIsRecording(false);
+      await meetingsAPI.create({
+        title,
+        date: now.toISOString().split('T')[0],
+        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        duration: `${Math.ceil(recordingTime / 60)} min`,
+        status: 'completed',
+        summary: finalTranscript
+          ? finalTranscript.substring(0, 200) + (finalTranscript.length > 200 ? '...' : '')
+          : `${sourceLabel} – ${Math.ceil(recordingTime / 60)} min captured.`,
+        transcript: finalTranscript || (isMic
+          ? '[No speech detected during recording.]'
+          : '[Tab audio captured. Live transcription is available only in Microphone mode.]'),
+        location: sourceLabel,
+        recording_url: null,
+        user_id: user?.id,
+      }, []);
 
-      // Save the transcript to database
-      if (transcript.trim()) {
-        const now = new Date();
-        const title = recordingTitle || `Tab Recording - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
-        
-        console.log('💾 Saving transcript to database...');
-        
-        await meetingsAPI.create({
-          title,
-          date: now.toISOString().split('T')[0],
-          time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
-          duration: `${Math.ceil(recordingTime / 60)} min`,
-          status: 'completed',
-          summary: transcript.substring(0, 200) + (transcript.length > 200 ? '...' : ''),
-          transcript: transcript,
-          location: 'Tab Recording',
-          recording_url: null,
-        });
+      console.log('✅ Saved!');
+      await fetchMeetings();
 
-        console.log('✅ Meeting saved successfully!');
-        await fetchMeetings();
+      setTimeout(() => {
+        setTranscript(''); setRecordingTitle(''); setRecordingTime(0);
+        setShowRecordingModal(false); setRecordingStep('select');
+      }, 2000);
 
-        // Reset and close
-        setTranscript('');
-        setRecordingTitle('');
-        setRecordingTime(0);
-        setShowRecordingModal(false);
-      } else {
-        console.warn('⚠️ No transcript available');
-        alert('No audio was transcribed. Please make sure:\n1. You selected "Share tab audio"\n2. The tab is playing audio\n3. Your browser supports Web Speech API');
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error stopping recording:', error);
-      alert('Failed to save recording. Please try again.');
-    } finally {
-      setProcessingRecording(false);
-    }
+      alert(`Failed to process recording:\n\n${error.message}`);
+      setIsRecording(false); setRecordingStep('select');
+    } finally { setProcessingRecording(false); }
   };
 
   const cancelRecording = () => {
+    if (speechRecognition) {
+      speechRecognition.stop();
+      setSpeechRecognition(null);
+    }
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.stop();
-    }
-    if (recognition) {
-      recognition.stop();
     }
     if (mediaStream) {
       mediaStream.getTracks().forEach((track) => track.stop());
@@ -355,6 +368,7 @@ export function Meetings() {
     setRecordingTitle('');
     setRecordingTime(0);
     setShowRecordingModal(false);
+    setRecordingStep('select');
   };
 
   return (
@@ -379,8 +393,8 @@ export function Meetings() {
           onClick={() => setShowRecordingModal(true)}
           className={`${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} bg-gradient-to-r from-red-500 to-pink-600 text-white ${compactMode ? 'rounded-lg' : 'rounded-xl'} shadow-md hover:shadow-lg transition-all flex items-center gap-2`}
         >
-          <Monitor className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
-          Record Tab Audio
+          <Mic className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
+          Record Audio
         </motion.button>
       </motion.div>
 
@@ -803,98 +817,313 @@ export function Meetings() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowRecordingModal(false)}
+            onClick={() => !isRecording && setShowRecordingModal(false)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-2xl ${compactMode ? 'p-5' : 'p-6'} w-full max-w-2xl shadow-2xl`}
+              className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-y-auto`}
             >
-              <h2 className={`${compactMode ? 'text-xl' : 'text-2xl'} font-bold ${compactMode ? 'mb-3' : 'mb-4'} ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                Record Tab Audio
-              </h2>
-              
-              <div className={compactMode ? "space-y-3" : "space-y-4"}>
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
                 <div>
-                  <label className={`block ${compactMode ? 'text-xs' : 'text-sm'} font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                    Recording Title
-                  </label>
-                  <input
-                    type="text"
-                    value={recordingTitle}
-                    onChange={(e) => setRecordingTitle(e.target.value)}
-                    placeholder="e.g., Product Roadmap Review"
-                    className={`w-full ${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} ${
-                      theme === 'dark' 
-                        ? 'bg-gray-700 text-white border-gray-600 placeholder-gray-400' 
-                        : 'bg-white text-gray-900 border-gray-300 placeholder-gray-500'
-                    } border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Mic className="w-4 h-4" />
-                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {isRecording ? `Recording: ${formatTime(recordingTime)}` : 'Not Recording'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      type="button"
-                      onClick={isRecording ? stopTabRecording : startTabRecording}
-                      disabled={processingRecording}
-                      className={`${compactMode ? 'px-4 py-1.5 text-sm' : 'px-5 py-2'} ${
-                        theme === 'dark' 
-                          ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                      } rounded-lg font-semibold transition-colors`}
-                    >
-                      {isRecording ? 'Stop Recording' : 'Start Recording'}
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      type="button"
-                      onClick={cancelRecording}
-                      disabled={processingRecording}
-                      className={`${compactMode ? 'px-4 py-1.5 text-sm' : 'px-5 py-2'} ${
-                        theme === 'dark' 
-                          ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                      } rounded-lg font-semibold transition-colors`}
-                    >
-                      Cancel
-                    </motion.button>
-                  </div>
-                </div>
-
-                <div className="h-40 overflow-y-auto border rounded-lg p-3">
-                  <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {transcript}
+                  <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    Audio Recorder
+                  </h2>
+                  <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Record from your microphone or capture audio from a browser tab
                   </p>
                 </div>
+                {!isRecording && (
+                  <button
+                    onClick={() => setShowRecordingModal(false)}
+                    className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
               </div>
 
-              <div className={`flex items-center justify-end gap-3 ${compactMode ? 'mt-4' : 'mt-6'}`}>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  onClick={() => setShowRecordingModal(false)}
-                  className={`${compactMode ? 'px-4 py-1.5 text-sm' : 'px-5 py-2'} ${
+              {/* Source Selector */}
+              {!isRecording && (
+                <div className="mb-6">
+                  <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
+                    Audio Source
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setSelectedSource('microphone')}
+                      className={`relative p-4 rounded-xl border-2 transition-all text-left ${
+                        selectedSource === 'microphone'
+                          ? theme === 'dark'
+                            ? 'border-purple-500 bg-purple-500/10'
+                            : 'border-purple-500 bg-purple-50'
+                          : theme === 'dark'
+                            ? 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      {selectedSource === 'microphone' && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle2 className="w-5 h-5 text-purple-500" />
+                        </div>
+                      )}
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
+                        selectedSource === 'microphone'
+                          ? 'bg-gradient-to-br from-purple-500 to-pink-600'
+                          : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
+                      }`}>
+                        <Mic className={`w-5 h-5 ${selectedSource === 'microphone' ? 'text-white' : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                      </div>
+                      <p className={`text-sm font-semibold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        Microphone
+                      </p>
+                      <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Record your voice with live transcription
+                      </p>
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setSelectedSource('tab')}
+                      className={`relative p-4 rounded-xl border-2 transition-all text-left ${
+                        selectedSource === 'tab'
+                          ? theme === 'dark'
+                            ? 'border-red-500 bg-red-500/10'
+                            : 'border-red-500 bg-red-50'
+                          : theme === 'dark'
+                            ? 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      {selectedSource === 'tab' && (
+                        <div className="absolute top-2 right-2">
+                          <CheckCircle2 className="w-5 h-5 text-red-500" />
+                        </div>
+                      )}
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${
+                        selectedSource === 'tab'
+                          ? 'bg-gradient-to-br from-red-500 to-orange-600'
+                          : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
+                      }`}>
+                        <Monitor className={`w-5 h-5 ${selectedSource === 'tab' ? 'text-white' : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                      </div>
+                      <p className={`text-sm font-semibold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        Browser Tab
+                      </p>
+                      <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Capture audio from any other browser tab
+                      </p>
+                    </motion.button>
+                  </div>
+                </div>
+              )}
+
+              {/* Recording Title Input */}
+              <div className="mb-5">
+                <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                  Recording Title (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={recordingTitle}
+                  onChange={(e) => setRecordingTitle(e.target.value)}
+                  placeholder="e.g., Team Standup Meeting"
+                  disabled={isRecording}
+                  className={`w-full px-4 py-3 ${
                     theme === 'dark' 
-                      ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
-                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                  } rounded-lg font-semibold transition-colors`}
-                >
-                  Close
-                </motion.button>
+                      ? 'bg-gray-700 text-white border-gray-600 placeholder-gray-400' 
+                      : 'bg-white text-gray-900 border-gray-300 placeholder-gray-500'
+                  } border rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50`}
+                />
               </div>
+
+              {/* Mode-specific Instructions */}
+              {!isRecording && selectedSource === 'tab' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`rounded-xl p-4 mb-5 ${theme === 'dark' ? 'bg-gradient-to-r from-red-900/20 to-orange-900/20 border border-red-800/30' : 'bg-gradient-to-r from-red-50 to-orange-50 border border-red-200'}`}
+                >
+                  <h3 className={`text-sm font-semibold mb-2 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    <Monitor className="w-4 h-4 text-red-500" />
+                    How Tab Audio Capture Works
+                  </h3>
+                  <ol className={`text-xs space-y-1.5 list-decimal list-inside ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <li>Click <strong>"Start Recording"</strong> — a browser tab picker will appear</li>
+                    <li>Select the <strong>"Tab"</strong> you want to record</li>
+                    <li>Make sure <strong>"Share tab audio"</strong> is checked</li>
+                    <li>Audio is captured directly from the tab's stream — no microphone needed</li>
+                  </ol>
+                  <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-yellow-400/80' : 'text-amber-600'}`}>
+                    Note: Live transcription is not available in Tab mode. The raw audio is saved.
+                  </p>
+                </motion.div>
+              )}
+              {!isRecording && selectedSource === 'microphone' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`rounded-xl p-4 mb-5 ${theme === 'dark' ? 'bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-800/30' : 'bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200'}`}
+                >
+                  <h3 className={`text-sm font-semibold mb-2 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    <Mic className="w-4 h-4 text-purple-500" />
+                    Microphone Recording
+                  </h3>
+                  <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Your microphone will record your voice and the Web Speech API will transcribe it in real-time. Grant microphone permission when prompted.
+                  </p>
+                </motion.div>
+              )}
+
+              {/* Recording Status */}
+              {isRecording && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`rounded-xl p-5 mb-5 ${theme === 'dark' ? 'bg-red-900/20 border border-red-800/30' : 'bg-red-50 border border-red-200'}`}
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                      </div>
+                      <div>
+                        <p className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                          Recording {selectedSource === 'tab' ? 'Tab Audio' : 'Microphone'}
+                        </p>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Duration: {formatTime(recordingTime)}
+                        </p>
+                      </div>
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={stopTabRecording}
+                      disabled={processingRecording}
+                      className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold shadow-lg flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Square className="w-4 h-4 fill-current" />
+                      Stop Recording
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Transcript / Audio Status Display */}
+              <div className="mb-6">
+                <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                  {selectedSource === 'microphone' ? 'Live Transcript' : 'Audio Capture Status'}
+                </label>
+                <div className={`min-h-[160px] max-h-[300px] overflow-y-auto rounded-xl p-4 ${
+                  theme === 'dark' ? 'bg-gray-900/50 border border-gray-700' : 'bg-gray-50 border border-gray-200'
+                }`}>
+                  {transcript ? (
+                    <p className={`text-sm leading-relaxed ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {transcript}
+                    </p>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                      {selectedSource === 'tab' ? (
+                        <Monitor className={`w-10 h-10 mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                      ) : (
+                        <Mic className={`w-10 h-10 mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                      )}
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                        {isRecording
+                          ? selectedSource === 'tab'
+                            ? 'Capturing tab audio... The audio stream is being recorded directly.'
+                            : 'Listening... Speak into your microphone. Transcript will appear here.'
+                          : selectedSource === 'tab'
+                            ? 'Select a browser tab to capture its audio output.'
+                            : 'Click "Start Recording" to begin voice recording with transcription.'}
+                      </p>
+                      {isRecording && selectedSource === 'tab' && (
+                        <div className="flex items-center gap-1.5 mt-3">
+                          {[3, 5, 4, 6, 3, 5, 4].map((h, i) => (
+                            <motion.div
+                              key={i}
+                              animate={{ height: [h, h * 2.5, h] }}
+                              transition={{ repeat: Infinity, duration: 0.6, delay: i * 0.08 }}
+                              className="w-1 bg-red-500 rounded-full"
+                              style={{ height: h * 2 }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3">
+                {!isRecording && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowRecordingModal(false)}
+                    className={`px-5 py-3 ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                    } rounded-xl font-semibold transition-colors`}
+                  >
+                    Cancel
+                  </motion.button>
+                )}
+                {!isRecording && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={startTabRecording}
+                    className={`px-6 py-3 text-white rounded-xl font-semibold shadow-lg flex items-center gap-2 ${
+                      selectedSource === 'tab'
+                        ? 'bg-gradient-to-r from-red-500 to-orange-600'
+                        : 'bg-gradient-to-r from-purple-500 to-pink-600'
+                    }`}
+                  >
+                    {selectedSource === 'tab' ? <Monitor className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    Start Recording
+                  </motion.button>
+                )}
+                {isRecording && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={cancelRecording}
+                    disabled={processingRecording}
+                    className={`px-5 py-3 ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                    } rounded-xl font-semibold transition-colors disabled:opacity-50`}
+                  >
+                    Cancel & Discard
+                  </motion.button>
+                )}
+              </div>
+
+              {/* Processing Indicator */}
+              {processingRecording && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className={`mt-4 p-4 rounded-xl ${theme === 'dark' ? 'bg-blue-900/20 border border-blue-800/30' : 'bg-blue-50 border border-blue-200'} flex items-center gap-3`}
+                >
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                  <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Processing and saving your recording...
+                  </p>
+                </motion.div>
+              )}
             </motion.div>
           </motion.div>
         )}

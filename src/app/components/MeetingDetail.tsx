@@ -23,43 +23,15 @@ import {
   ThumbsUp,
   ThumbsDown,
   Minus,
-  Mic
+  Mic,
+  FileText,
+  MessageSquare
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { meetingsAPI, actionItemsAPI } from "../services/apiWrapper";
 import { aiProcessingService } from "../services/googleMeetService";
-
-// Mock participant data for the Participants tab
-const mockParticipantDetails = [
-  { name: "Sarah Chen", role: "Product Manager", speakingPct: 35, sentiment: "positive", tasksAssigned: 3 },
-  { name: "Mike Johnson", role: "Engineering Lead", speakingPct: 28, sentiment: "positive", tasksAssigned: 2 },
-  { name: "Emily Davis", role: "Designer", speakingPct: 20, sentiment: "neutral", tasksAssigned: 1 },
-  { name: "Alex Kim", role: "Data Analyst", speakingPct: 12, sentiment: "positive", tasksAssigned: 2 },
-  { name: "Jordan Lee", role: "QA Engineer", speakingPct: 5, sentiment: "negative", tasksAssigned: 0 },
-];
-
-const mockKeyDecisions = [
-  "Approved Q3 product roadmap with focus on AI features",
-  "Decided to postpone mobile app launch to August",
-  "Agreed on new design system adoption timeline",
-  "Budget allocated for cloud infrastructure upgrade",
-];
-
-const mockNextSteps = [
-  "Schedule follow-up with engineering team by Friday",
-  "Prepare updated wireframes for review next week",
-  "Send budget proposal to finance department",
-  "Set up staging environment for new features",
-];
-
-const mockHighlights = [
-  { time: "00:05:32", text: "Team alignment on Q3 priorities achieved" },
-  { time: "00:12:15", text: "New AI feature demo received positive feedback" },
-  { time: "00:25:40", text: "Design system migration plan discussed" },
-  { time: "00:35:10", text: "Budget concerns raised and addressed" },
-];
 
 export function MeetingDetail() {
   const { id } = useParams();
@@ -72,6 +44,27 @@ export function MeetingDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aiJobs, setAiJobs] = useState<any[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
+  const handleAiAnalyze = async () => {
+    if (!user || !id) return;
+    setAnalyzing(true);
+    setAnalyzeError(null);
+    try {
+      const result = await aiProcessingService.triggerAnalysis(id, user.id);
+      if (!result.success) {
+        setAnalyzeError(result.error || 'Analysis failed');
+      }
+      // The real-time subscription will update the meeting data automatically
+    } catch (err: any) {
+      setAnalyzeError(err.message || 'An unexpected error occurred');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const isProcessing = meeting?.ai_processing_status && !['none', 'complete', 'failed'].includes(meeting.ai_processing_status);
 
   useEffect(() => {
     const loadMeetingData = async () => {
@@ -151,10 +144,14 @@ export function MeetingDetail() {
   };
 
   const formatTime = (timeStr: string) => {
-    return new Date(`2000-01-01T${timeStr}`).toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit' 
-    });
+    try {
+      return new Date(`2000-01-01T${timeStr}`).toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit' 
+      });
+    } catch {
+      return timeStr;
+    }
   };
 
   const getInitials = (name: string) => {
@@ -171,22 +168,19 @@ export function MeetingDetail() {
     return colors[index % colors.length];
   };
 
-  const sentimentColor = (s: string) => {
-    if (s === 'positive') return 'bg-green-500';
-    if (s === 'negative') return 'bg-red-500';
-    return 'bg-yellow-500';
-  };
+  // Determine if we have real participants
+  const realParticipants = meeting.meeting_participants?.filter((p: any) => p.participant_name) || [];
+  const hasParticipants = realParticipants.length > 0;
 
-  // Build participants list from meeting data or fallback to mock
-  const participants = meeting.meeting_participants?.length > 0
-    ? meeting.meeting_participants.map((p: any, i: number) => ({
-        ...mockParticipantDetails[i % mockParticipantDetails.length],
-        name: p.participant_name,
-        role: p.role || mockParticipantDetails[i % mockParticipantDetails.length].role,
-      }))
-    : mockParticipantDetails;
+  // Determine which tabs to show
+  const tabs = hasParticipants
+    ? (["summary", "transcript", "actions", "participants"] as const)
+    : (["summary", "transcript", "actions"] as const);
 
-  const tabs = ["summary", "transcript", "actions", "participants"] as const;
+  // If the active tab is participants but there are none, switch to summary
+  if (activeTab === "participants" && !hasParticipants) {
+    // We can't call setActiveTab during render, but this edge case is handled by not showing the tab
+  }
 
   return (
     <div className="space-y-6">
@@ -216,8 +210,14 @@ export function MeetingDetail() {
               </div>
               <div className={`flex items-center gap-2 ${theme === 'dark' ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-50 text-gray-600'} px-3 py-1.5 rounded-lg`}>
                 <Clock className="w-4 h-4 text-purple-600" />
-                {formatTime(meeting.time)} • {meeting.duration}
+                {formatTime(meeting.time)} &bull; {meeting.duration}
               </div>
+              {meeting.location && (
+                <div className={`flex items-center gap-2 ${theme === 'dark' ? 'bg-gray-800/60 text-gray-300' : 'bg-gray-100 text-gray-600'} px-3 py-1.5 rounded-lg`}>
+                  <Mic className="w-4 h-4 text-gray-500" />
+                  {meeting.location}
+                </div>
+              )}
               <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${
                 meeting.status === "completed"
                   ? "bg-gradient-to-r from-green-400 to-emerald-500 text-white"
@@ -265,9 +265,9 @@ export function MeetingDetail() {
         </motion.div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={`grid grid-cols-1 ${hasParticipants ? 'lg:grid-cols-3' : ''} gap-6`}>
         {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className={`${hasParticipants ? 'lg:col-span-2' : ''} space-y-6`}>
           {/* Tabs */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -280,7 +280,7 @@ export function MeetingDetail() {
                 {tabs.map((tab) => (
                   <motion.button
                     key={tab}
-                    onClick={() => setActiveTab(tab)}
+                    onClick={() => setActiveTab(tab as any)}
                     whileHover={{ y: -2 }}
                     className={`px-6 py-4 font-semibold transition-all relative ${
                       activeTab === tab
@@ -311,7 +311,7 @@ export function MeetingDetail() {
                     exit={{ opacity: 0, y: -10 }}
                     className="space-y-6"
                   >
-                    {/* AI Generated badge */}
+                    {/* Summary Header */}
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
                         <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} flex items-center gap-2`}>
@@ -331,13 +331,58 @@ export function MeetingDetail() {
                           </span>
                         )}
                       </div>
-                      <span className="px-3 py-1 bg-gradient-to-r from-purple-500 to-blue-600 text-white text-xs font-semibold rounded-full">
-                        AI Generated
-                      </span>
+                      {meeting.summary && (
+                        <span className="px-3 py-1 bg-gradient-to-r from-purple-500 to-blue-600 text-white text-xs font-semibold rounded-full">
+                          AI Generated
+                        </span>
+                      )}
                     </div>
-                    <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} leading-relaxed`}>
-                      {meeting.summary || "No summary available for this meeting."}
-                    </p>
+
+                    {/* Summary Content */}
+                    <div className={`${theme === 'dark' ? 'bg-gray-800/40' : 'bg-white/60'} rounded-xl p-5 border ${theme === 'dark' ? 'border-white/5' : 'border-white/50'}`}>
+                      <p className={`${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} leading-relaxed whitespace-pre-wrap`}>
+                        {meeting.summary || "No summary available for this meeting."}
+                      </p>
+                    </div>
+
+                    {/* AI Analyze Button */}
+                    {meeting.transcript && (
+                      <div className="flex flex-col items-center gap-3">
+                        <motion.button
+                          onClick={handleAiAnalyze}
+                          disabled={analyzing || isProcessing}
+                          whileHover={!analyzing && !isProcessing ? { scale: 1.03 } : {}}
+                          whileTap={!analyzing && !isProcessing ? { scale: 0.97 } : {}}
+                          className={`w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-semibold text-white transition-all shadow-lg ${
+                            analyzing || isProcessing
+                              ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed shadow-none'
+                              : meeting.summary
+                              ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:shadow-purple-500/25 hover:shadow-xl'
+                              : 'bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-500 hover:shadow-blue-500/25 hover:shadow-xl'
+                          }`}
+                        >
+                          {analyzing || isProcessing ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              {isProcessing ? aiProcessingService.getStatusLabel(meeting.ai_processing_status) : 'Starting analysis...'}
+                            </>
+                          ) : (
+                            <>
+                              <Brain className="w-5 h-5" />
+                              {meeting.summary ? 'Re-analyze with AI' : 'Analyze Transcript with AI'}
+                            </>
+                          )}
+                        </motion.button>
+                        {!meeting.summary && !analyzing && !isProcessing && (
+                          <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                            Generate summary, key decisions, highlights, and next steps from your transcript
+                          </p>
+                        )}
+                        {analyzeError && (
+                          <p className="text-xs text-red-500 font-medium">{analyzeError}</p>
+                        )}
+                      </div>
+                    )}
                     
                     {/* Key Decisions */}
                     {meeting.key_decisions && meeting.key_decisions.length > 0 && (
@@ -348,7 +393,7 @@ export function MeetingDetail() {
                         </h4>
                         <ul className="space-y-2">
                           {meeting.key_decisions.map((decision: string, i: number) => (
-                            <li key={i} className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-sm">
+                            <li key={i} className={`flex items-start gap-2 p-3 ${theme === 'dark' ? 'bg-blue-900/20' : 'bg-blue-50'} rounded-xl text-sm`}>
                               <span className="w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">{i+1}</span>
                               <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>{decision}</span>
                             </li>
@@ -375,26 +420,21 @@ export function MeetingDetail() {
                       </div>
                     )}
 
-                    {/* Next Steps */}
-                    <div>
-                      <h4 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3 flex items-center gap-2`}>
-                        <ListChecks className="w-4 h-4 text-blue-500" />
-                        Next Steps
-                      </h4>
-                      <ul className="space-y-2">
-                        {mockNextSteps.map((step, i) => (
-                          <li key={i} className={`flex items-start gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                            <CheckCircle2 className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-                            {step}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {meeting.location && (
+                    {/* Next Steps - only show if present on the meeting object */}
+                    {meeting.next_steps && meeting.next_steps.length > 0 && (
                       <div>
-                        <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3`}>Location</h3>
-                        <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>{meeting.location}</p>
+                        <h4 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-3 flex items-center gap-2`}>
+                          <ListChecks className="w-4 h-4 text-blue-500" />
+                          Next Steps
+                        </h4>
+                        <ul className="space-y-2">
+                          {meeting.next_steps.map((step: string, i: number) => (
+                            <li key={i} className={`flex items-start gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                              <CheckCircle2 className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                              {step}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     )}
                   </motion.div>
@@ -409,7 +449,10 @@ export function MeetingDetail() {
                     className="space-y-4"
                   >
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Recording Transcript</h3>
+                      <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} flex items-center gap-2`}>
+                        <FileText className="w-5 h-5 text-blue-500" />
+                        Recording Transcript
+                      </h3>
                       {meeting.recording_url && (
                         <motion.a
                           href={meeting.recording_url}
@@ -424,13 +467,18 @@ export function MeetingDetail() {
                         </motion.a>
                       )}
                     </div>
-                    <div className={`${theme === 'dark' ? 'bg-gray-800/40' : 'bg-white/60'} rounded-xl p-4 max-h-96 overflow-y-auto`}>
+                    <div className={`${theme === 'dark' ? 'bg-gray-800/40' : 'bg-white/60'} rounded-xl p-4 max-h-96 overflow-y-auto border ${theme === 'dark' ? 'border-white/5' : 'border-white/50'}`}>
                       {meeting.transcript ? (
-                        <pre className={`whitespace-pre-wrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} leading-relaxed`}>
+                        <pre className={`whitespace-pre-wrap text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} leading-relaxed font-sans`}>
                           {meeting.transcript}
                         </pre>
                       ) : (
-                        <p className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} text-center py-8`}>No transcript available for this meeting.</p>
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <MessageSquare className={`w-12 h-12 mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                          <p className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                            No transcript available for this meeting.
+                          </p>
+                        </div>
                       )}
                     </div>
                   </motion.div>
@@ -486,12 +534,15 @@ export function MeetingDetail() {
                         </motion.div>
                       ))
                     ) : (
-                      <p className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} text-center py-8`}>No action items for this meeting.</p>
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <CheckCircle2 className={`w-12 h-12 mb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
+                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>No action items for this meeting.</p>
+                      </div>
                     )}
                   </motion.div>
                 )}
 
-                {activeTab === "participants" && (
+                {activeTab === "participants" && hasParticipants && (
                   <motion.div
                     key="participants"
                     initial={{ opacity: 0, y: 10 }}
@@ -499,43 +550,30 @@ export function MeetingDetail() {
                     exit={{ opacity: 0, y: -10 }}
                     className="space-y-3"
                   >
-                    {participants.map((p: any, idx: number) => (
+                    {realParticipants.map((p: any, idx: number) => (
                       <motion.div
-                        key={p.name}
+                        key={p.id || idx}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.08 }}
                         className={`p-4 ${theme === 'dark' ? 'bg-gray-800/40' : 'bg-white/60'} rounded-xl border ${theme === 'dark' ? 'border-white/5' : 'border-white/50'}`}
                       >
                         <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 ${getColorForName(p.name)} rounded-full flex items-center justify-center shadow-lg flex-shrink-0`}>
-                            <span className="text-white font-bold">{getInitials(p.name)}</span>
+                          <div className={`w-12 h-12 ${getColorForName(p.participant_name)} rounded-full flex items-center justify-center shadow-lg flex-shrink-0`}>
+                            <span className="text-white font-bold">{getInitials(p.participant_name)}</span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{p.name}</p>
-                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>
-                                {p.role}
-                              </span>
-                              <span className={`w-2.5 h-2.5 rounded-full ${sentimentColor(p.sentiment)}`} title={`Sentiment: ${p.sentiment}`} />
+                              <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{p.participant_name}</p>
+                              {p.role && (
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>
+                                  {p.role}
+                                </span>
+                              )}
                             </div>
-                            {/* Speaking time bar */}
-                            <div className="flex items-center gap-2">
-                              <div className={`flex-1 h-2 rounded-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                                <motion.div
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${p.speakingPct}%` }}
-                                  transition={{ delay: 0.3 + idx * 0.1, duration: 0.6 }}
-                                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-600"
-                                />
-                              </div>
-                              <span className={`text-xs font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} w-10`}>
-                                {p.speakingPct}%
-                              </span>
-                            </div>
-                            <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
-                              {p.tasksAssigned} task{p.tasksAssigned !== 1 ? 's' : ''} assigned
-                            </p>
+                            {p.participant_email && (
+                              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{p.participant_email}</p>
+                            )}
                           </div>
                         </div>
                       </motion.div>
@@ -547,24 +585,24 @@ export function MeetingDetail() {
           </motion.div>
         </div>
 
-        {/* Sidebar */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-6"
-        >
-          {/* Participants */}
-          <div className="glass rounded-2xl p-6 shadow-xl">
-            <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-4 flex items-center gap-2`}>
-              <Users className="w-5 h-5 text-purple-500" />
-              Participants ({meeting.meeting_participants?.length || 0})
-            </h3>
-            <div className="space-y-3">
-              {meeting.meeting_participants && meeting.meeting_participants.length > 0 ? (
-                meeting.meeting_participants.map((participant: any, idx: number) => (
+        {/* Sidebar - only show if there are participants */}
+        {hasParticipants && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-6"
+          >
+            {/* Participants */}
+            <div className="glass rounded-2xl p-6 shadow-xl">
+              <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-4 flex items-center gap-2`}>
+                <Users className="w-5 h-5 text-purple-500" />
+                Participants ({realParticipants.length})
+              </h3>
+              <div className="space-y-3">
+                {realParticipants.map((participant: any, idx: number) => (
                   <motion.div
-                    key={participant.id}
+                    key={participant.id || idx}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 + idx * 0.1 }}
@@ -582,13 +620,11 @@ export function MeetingDetail() {
                       )}
                     </div>
                   </motion.div>
-                ))
-              ) : (
-                <p className={`text-sm text-center py-4 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>No participants listed</p>
-              )}
+                ))}
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
       </div>
     </div>
   );
