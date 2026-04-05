@@ -21,9 +21,14 @@ export const aiProcessingService = {
   /**
    * Subscribe to AI processing job updates
    */
-  async subscribeToJob(meetingId: string, onUpdate: (payload: any) => void) {
+  subscribeToJob(meetingId: string, onUpdate: (payload: any) => void) {
+    const channelName = `ai-job-${meetingId}`;
+
+    // Remove existing channel if it exists
+    supabase.removeChannel(supabase.channel(channelName));
+
     return supabase
-      .channel(`ai-job-${meetingId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -40,9 +45,14 @@ export const aiProcessingService = {
   /**
    * Subscribe to meeting updates
    */
-  async subscribeMeetingUpdates(meetingId: string, onUpdate: (payload: any) => void) {
+  subscribeMeetingUpdates(meetingId: string, onUpdate: (payload: any) => void) {
+    const channelName = `meeting-update-${meetingId}`;
+
+    // Remove existing channel if it exists
+    supabase.removeChannel(supabase.channel(channelName));
+
     return supabase
-      .channel(`meeting-update-${meetingId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {

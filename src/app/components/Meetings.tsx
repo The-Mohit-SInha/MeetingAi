@@ -26,13 +26,14 @@ import {
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { useLiveMeeting } from "../context/LiveMeetingContext";
-import { meetingsAPI } from "../services/apiWrapper";
+import { meetingsAPI, actionItemsAPI } from "../services/apiWrapper";
 import { recordingsAPI } from "../services/apiWrapper";
 import { aiProcessingService } from "../services/googleMeetService";
 import { supabase } from "../../lib/supabase";
 import { transcribeAudioBlob } from "../services/localTranscriptionService";
 import { transcribeWithGroq, isGroqConfigured } from "../services/groqTranscriptionService";
 import { transcribeWithGroqDirect, convertToAudioBlob } from "../services/groqDirectService";
+import { generateMeetingSummary } from "../services/groqLLMService";
 import { RecordingDiagnostic } from "./RecordingDiagnostic";
 import { AudioLevelIndicator } from "./AudioLevelIndicator";
 
@@ -651,20 +652,72 @@ export function Meetings() {
       }
       console.log('📝 Final transcript length:', finalTranscript.length, 'chars');
 
+      // Generate AI summary and extract action items if we have a transcript
+      let aiSummary = '';
+      let extractedActions: any[] = [];
+
+      if (finalTranscript && finalTranscript.trim().length > 0) {
+        try {
+          setTranscriptionProgress('🤖 Generating summary and extracting action items...');
+          console.log('🤖 Generating meeting summary with AI...');
+
+          const summaryResult = await generateMeetingSummary(finalTranscript, title);
+
+          aiSummary = summaryResult.summary;
+          extractedActions = summaryResult.actionItems;
+
+          console.log('✅ AI Summary generated:', {
+            summary: aiSummary.substring(0, 100),
+            actionItemsCount: extractedActions.length,
+            keyPointsCount: summaryResult.keyPoints.length,
+          });
+
+          setTranscriptionProgress('');
+        } catch (summaryErr: any) {
+          console.error('⚠️ AI summary generation failed:', summaryErr);
+          // Continue without AI summary
+          aiSummary = finalTranscript.substring(0, 200) + (finalTranscript.length > 200 ? '...' : '');
+        }
+      }
+
       const meetingData = await meetingsAPI.create({
         title,
         date: now.toISOString().split('T')[0],
         time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
         duration: `${Math.ceil(recordingTime / 60)} min`,
         status: 'completed',
-        summary: finalTranscript
+        summary: aiSummary || (finalTranscript
           ? finalTranscript.substring(0, 200) + (finalTranscript.length > 200 ? '...' : '')
-          : `${sourceLabel} – ${Math.ceil(recordingTime / 60)} min captured.`,
+          : `${sourceLabel} – ${Math.ceil(recordingTime / 60)} min captured.`),
         transcript: finalTranscript || '[No speech detected during recording.]',
         location: sourceLabel,
         recording_url: null,
         user_id: user?.id,
       }, []);
+
+      // Create extracted action items
+      if (extractedActions.length > 0 && meetingData?.id && user) {
+        try {
+          console.log(`📝 Creating ${extractedActions.length} extracted action items...`);
+
+          for (const action of extractedActions) {
+            await actionItemsAPI.create({
+              title: action.title,
+              description: action.description || '',
+              meeting_id: meetingData.id,
+              status: 'todo',
+              priority: action.priority,
+              assigned_to: action.assignee || user.email || 'Unassigned',
+              due_date: null,
+              user_id: user.id,
+            });
+          }
+
+          console.log('✅ Action items created successfully');
+        } catch (actionErr: any) {
+          console.error('⚠️ Failed to create some action items:', actionErr);
+        }
+      }
 
       // For tab recordings: also upload the raw recording blob to Supabase Storage
       if (isTab && meetingData?.id && user) {

@@ -32,6 +32,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { meetingsAPI, actionItemsAPI } from "../services/apiWrapper";
 import { aiProcessingService } from "../services/googleMeetService";
+import { generateMeetingSummary } from "../services/groqLLMService";
 
 export function MeetingDetail() {
   const { id } = useParams();
@@ -48,15 +49,41 @@ export function MeetingDetail() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   const handleAiAnalyze = async () => {
-    if (!user || !id) return;
+    if (!user || !id || !meeting?.transcript) return;
     setAnalyzing(true);
     setAnalyzeError(null);
     try {
-      const result = await aiProcessingService.triggerAnalysis(id, user.id);
-      if (!result.success) {
-        setAnalyzeError(result.error || 'Analysis failed');
+      // Generate summary using Groq LLM
+      const summaryResult = await generateMeetingSummary(
+        meeting.transcript,
+        meeting.title
+      );
+
+      // Update meeting with new summary
+      await meetingsAPI.update(id, {
+        summary: summaryResult.summary
+      }, user.id);
+
+      // Create new action items extracted from transcript
+      for (const action of summaryResult.actionItems) {
+        await actionItemsAPI.create({
+          title: action.title,
+          description: action.description || '',
+          meeting_id: id,
+          status: 'todo',
+          priority: action.priority,
+          assigned_to: action.assignee || user.email || 'Unassigned',
+          due_date: null,
+          user_id: user.id,
+        });
       }
-      // The real-time subscription will update the meeting data automatically
+
+      // Reload meeting data to show updates
+      const updatedMeeting = await meetingsAPI.getById(id, user.id);
+      setMeeting(updatedMeeting);
+
+      const updatedActions = await actionItemsAPI.getByMeeting(id, user.id);
+      setActionItems(updatedActions);
     } catch (err: any) {
       setAnalyzeError(err.message || 'An unexpected error occurred');
     } finally {
@@ -67,13 +94,16 @@ export function MeetingDetail() {
   const isProcessing = meeting?.ai_processing_status && !['none', 'complete', 'failed'].includes(meeting.ai_processing_status);
 
   useEffect(() => {
-    const loadMeetingData = async () => {
-      if (!user || !id) return;
+    if (!user || !id) return;
 
+    let jobChannel: any = null;
+    let meetingChannel: any = null;
+
+    const loadMeetingData = async () => {
       try {
         setLoading(true);
         setError(null);
-        
+
         const meetingData = await meetingsAPI.getById(id, user.id);
         setMeeting(meetingData);
 
@@ -83,8 +113,14 @@ export function MeetingDetail() {
         // Fetch AI job status and subscribe to updates
         const jobs = await aiProcessingService.getJobStatus(id);
         setAiJobs(jobs);
-        aiProcessingService.subscribeToJob(id, () => aiProcessingService.getJobStatus(id).then(setAiJobs));
-        aiProcessingService.subscribeMeetingUpdates(id, (payload) => {
+
+        // Subscribe to job updates
+        jobChannel = aiProcessingService.subscribeToJob(id, () =>
+          aiProcessingService.getJobStatus(id).then(setAiJobs)
+        );
+
+        // Subscribe to meeting updates
+        meetingChannel = aiProcessingService.subscribeMeetingUpdates(id, (payload) => {
           if (payload.new) setMeeting((prev: any) => prev ? ({ ...prev, ...payload.new }) : prev);
         });
       } catch (err: any) {
@@ -96,6 +132,16 @@ export function MeetingDetail() {
     };
 
     loadMeetingData();
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      if (jobChannel) {
+        jobChannel.unsubscribe();
+      }
+      if (meetingChannel) {
+        meetingChannel.unsubscribe();
+      }
+    };
   }, [id, user]);
 
   if (loading) {
