@@ -144,7 +144,8 @@ export function extractActionItemsFromTranscript(
 
 // Process audio with speaker diarization using AssemblyAI
 export async function transcribeWithSpeakerDiarization(
-  audioBlob: Blob
+  audioBlob: Blob,
+  accountHolderName?: string
 ): Promise<{
   transcript: string;
   speakers: Speaker[];
@@ -333,11 +334,33 @@ export async function saveParticipantsToMeeting(
   userId: string
 ) {
   try {
-    const participantsData = participants.map(name => ({
-      meeting_id: meetingId,
-      participant_name: name,
-      participant_email: `${name.toLowerCase().replace(/\s+/g, '.')}@company.com`,
-    }));
+    // Get the account holder's email from the database
+    const { data: userData } = await supabase
+      .from('users')
+      .select('name, email')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const accountHolderName = userData?.name;
+    const accountHolderEmail = userData?.email;
+
+    const participantsData = participants.map(name => {
+      // If this participant is the account holder, use their real email
+      if (name === accountHolderName && accountHolderEmail) {
+        return {
+          meeting_id: meetingId,
+          participant_name: name,
+          participant_email: accountHolderEmail,
+        };
+      }
+
+      // For other participants, generate a placeholder email
+      return {
+        meeting_id: meetingId,
+        participant_name: name,
+        participant_email: `${name.toLowerCase().replace(/\s+/g, '.')}@company.com`,
+      };
+    });
 
     const { error } = await supabase
       .from('meeting_participants')
