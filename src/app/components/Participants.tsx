@@ -102,22 +102,39 @@ export function Participants() {
   const handleSaveEdit = async (participantId: string, originalName: string) => {
     if (!user) return;
     try {
+      console.log('Updating participant:', {
+        originalName,
+        newName: editForm.name,
+        newEmail: editForm.email,
+      });
+
       // Update all instances of this participant across all meetings
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('meeting_participants')
         .update({
           participant_name: editForm.name,
           participant_email: editForm.email,
         })
-        .eq('participant_name', originalName);
+        .eq('participant_name', originalName)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Updated records:', data);
 
       setEditingParticipant(null);
       setEditForm({});
+
+      // Refresh participants list
       await fetchParticipants();
-    } catch (error) {
+
+      alert('✅ Participant updated successfully!');
+    } catch (error: any) {
       console.error("Error updating participant:", error);
+      alert(`❌ Failed to update participant: ${error.message || 'Unknown error'}`);
     }
   };
 
