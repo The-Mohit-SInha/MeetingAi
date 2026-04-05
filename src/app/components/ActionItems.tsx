@@ -1,10 +1,11 @@
-import { AlertCircle, Clock, Circle, CheckCircle2, ChevronDown, Search, Filter, User, Link2, Calendar, Flag, Loader2, Video, TrendingUp, Edit2, Save, X } from "lucide-react";
+import { AlertCircle, Clock, Circle, CheckCircle2, ChevronDown, Search, Filter, User, Link2, Calendar, Flag, Loader2, Video, TrendingUp, Edit2, Save, X, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { actionItemsAPI, participantsAPI } from "../services/apiWrapper";
+import { sendActionItemEmail } from "../services/emailService";
 
 const priorityConfig = {
   high: { color: "from-red-500 to-pink-500", icon: AlertCircle, label: "High" },
@@ -31,6 +32,7 @@ export function ActionItems() {
   const [editingAction, setEditingAction] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [participants, setParticipants] = useState<string[]>([]);
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -147,6 +149,33 @@ export function ActionItems() {
   const handleCancelEdit = () => {
     setEditingAction(null);
     setEditForm({});
+  };
+
+  const handleSendEmail = async (action: any) => {
+    setSendingEmail(action.id);
+    try {
+      const result = await sendActionItemEmail({
+        task: action.task,
+        assignee: {
+          name: action.assignee.name,
+          email: action.assignee.email,
+        },
+        priority: action.priority,
+        dueDate: action.dueDate,
+        description: action.description || '',
+      });
+
+      if (result.success) {
+        alert(`✅ ${result.message}`);
+      } else {
+        alert(`❌ ${result.message}`);
+      }
+    } catch (error: any) {
+      console.error('Error sending email:', error);
+      alert(`❌ Failed to send email: ${error.message}`);
+    } finally {
+      setSendingEmail(null);
+    }
   };
 
   const filteredActions = actionItems.filter((action) => {
@@ -596,6 +625,31 @@ export function ActionItems() {
                         From meeting
                       </Link>
                     )}
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleSendEmail(action)}
+                      disabled={sendingEmail === action.id}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 ${
+                        sendingEmail === action.id
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : theme === 'dark'
+                          ? 'bg-green-900/50 text-green-300 hover:bg-green-900'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                      }`}
+                    >
+                      {sendingEmail === action.id ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-3 h-3" />
+                          Send Email
+                        </>
+                      )}
+                    </motion.button>
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}

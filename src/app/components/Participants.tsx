@@ -3,16 +3,20 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { participantsAPI } from "../services/apiWrapper";
-import { 
-  Search, 
-  Mail, 
-  Phone, 
-  Users, 
-  Calendar as CalendarIcon, 
-  Award, 
-  TrendingUp, 
-  Clock, 
-  Loader2 
+import { supabase } from "../../lib/supabase";
+import {
+  Search,
+  Mail,
+  Phone,
+  Users,
+  Calendar as CalendarIcon,
+  Award,
+  TrendingUp,
+  Clock,
+  Loader2,
+  Edit2,
+  Save,
+  X
 } from "lucide-react";
 
 export function Participants() {
@@ -21,6 +25,8 @@ export function Participants() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [participants, setParticipants] = useState<any[]>([]);
+  const [editingParticipant, setEditingParticipant] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
 
   useEffect(() => {
     if (user) {
@@ -82,6 +88,44 @@ export function Participants() {
       setLoading(false);
     }
   };
+
+  const handleEditParticipant = (participant: any) => {
+    setEditingParticipant(participant.id);
+    setEditForm({
+      name: participant.name,
+      email: participant.email,
+      role: participant.role,
+      department: participant.department,
+    });
+  };
+
+  const handleSaveEdit = async (participantId: string, originalName: string) => {
+    if (!user) return;
+    try {
+      // Update all instances of this participant across all meetings
+      const { error } = await supabase
+        .from('meeting_participants')
+        .update({
+          participant_name: editForm.name,
+          participant_email: editForm.email,
+        })
+        .eq('participant_name', originalName);
+
+      if (error) throw error;
+
+      setEditingParticipant(null);
+      setEditForm({});
+      await fetchParticipants();
+    } catch (error) {
+      console.error("Error updating participant:", error);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingParticipant(null);
+    setEditForm({});
+  };
+
   const [selectedDepartment, setSelectedDepartment] = useState("all");
 
   const filteredParticipants = participants.filter(p => {
@@ -178,79 +222,151 @@ export function Participants() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 + index * 0.05 }}
             whileHover={{ scale: 1.02 }}
-            className={`glass-card ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-6'}`}
+            className={`glass-card ${compactMode ? 'rounded-xl p-4' : 'rounded-2xl p-6'} relative`}
           >
-            <div className={`flex items-start ${compactMode ? 'gap-3 mb-3' : 'gap-4 mb-4'}`}>
-              <div className={`${compactMode ? 'w-12 h-12' : 'w-16 h-16'} ${participant.color} ${compactMode ? 'rounded-xl' : 'rounded-2xl'} flex items-center justify-center text-white ${compactMode ? 'text-lg' : 'text-xl'} font-bold shadow-lg`}>
-                {participant.avatar}
-              </div>
-              <div className="flex-1">
-                <h3 className={`${compactMode ? 'text-base' : 'text-lg'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  {participant.name}
-                </h3>
-                <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {participant.role}
-                </p>
-                <div className={`px-3 py-1 bg-yellow-400 text-gray-900 ${compactMode ? 'rounded-lg' : 'rounded-full'} text-xs font-bold inline-block mt-2`}>
-                  {participant.department}
+            {editingParticipant === participant.id ? (
+              /* Edit Mode */
+              <div className="space-y-4">
+                <div>
+                  <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg text-sm ${
+                      theme === 'dark'
+                        ? 'bg-gray-800 text-white border-gray-700'
+                        : 'bg-white text-gray-900 border-gray-300'
+                    } border`}
+                  />
+                </div>
+                <div>
+                  <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className={`w-full px-3 py-2 rounded-lg text-sm ${
+                      theme === 'dark'
+                        ? 'bg-gray-800 text-white border-gray-700'
+                        : 'bg-white text-gray-900 border-gray-300'
+                    } border`}
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={handleCancelEdit}
+                    className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${
+                      theme === 'dark'
+                        ? 'bg-gray-700 text-white hover:bg-gray-600'
+                        : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                    }`}
+                  >
+                    <X className="w-3 h-3" /> Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => handleSaveEdit(participant.id, participant.name)}
+                    className="px-3 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg text-sm flex items-center gap-2"
+                  >
+                    <Save className="w-3 h-3" /> Save
+                  </motion.button>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* Display Mode */
+              <>
+                <div className="absolute top-4 right-4 z-10">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    onClick={() => handleEditParticipant(participant)}
+                    className={`p-2 rounded-lg transition-colors ${
+                      theme === 'dark'
+                        ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                        : 'hover:bg-gray-200 text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </motion.button>
+                </div>
+                <div className={`flex items-start ${compactMode ? 'gap-3 mb-3' : 'gap-4 mb-4'}`}>
+                  <div className={`${compactMode ? 'w-12 h-12' : 'w-16 h-16'} ${participant.color} ${compactMode ? 'rounded-xl' : 'rounded-2xl'} flex items-center justify-center text-white ${compactMode ? 'text-lg' : 'text-xl'} font-bold shadow-lg`}>
+                    {participant.avatar}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className={`${compactMode ? 'text-base' : 'text-lg'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {participant.name}
+                    </h3>
+                    <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {participant.role}
+                    </p>
+                    <div className={`px-3 py-1 bg-yellow-400 text-gray-900 ${compactMode ? 'rounded-lg' : 'rounded-full'} text-xs font-bold inline-block mt-2`}>
+                      {participant.department}
+                    </div>
+                  </div>
+                </div>
 
-            <div className={`${compactMode ? 'space-y-1 mb-3' : 'space-y-2 mb-4'}`}>
-              <div className={`flex items-center gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                <Mail className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
-                {participant.email}
-              </div>
-              {participant.phone && (
-                <div className={`flex items-center gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <Phone className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
-                  {participant.phone}
+                <div className={`${compactMode ? 'space-y-1 mb-3' : 'space-y-2 mb-4'}`}>
+                  <div className={`flex items-center gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <Mail className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                    {participant.email}
+                  </div>
+                  {participant.phone && (
+                    <div className={`flex items-center gap-2 text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <Phone className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
+                      {participant.phone}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className={`grid grid-cols-2 ${compactMode ? 'gap-2' : 'gap-3'}`}>
-              <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <CalendarIcon className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-blue-500`} />
-                  <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Meetings</span>
-                </div>
-                <p className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  {participant.stats.meetings}
-                </p>
-              </div>
+                <div className={`grid grid-cols-2 ${compactMode ? 'gap-2' : 'gap-3'}`}>
+                  <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <CalendarIcon className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-blue-500`} />
+                      <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Meetings</span>
+                    </div>
+                    <p className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {participant.stats.meetings}
+                    </p>
+                  </div>
 
-              <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <Award className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-green-500`} />
-                  <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Actions</span>
-                </div>
-                <p className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  {participant.stats.actions}
-                </p>
-              </div>
+                  <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Award className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-green-500`} />
+                      <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Actions</span>
+                    </div>
+                    <p className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {participant.stats.actions}
+                    </p>
+                  </div>
 
-              <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <TrendingUp className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-purple-500`} />
-                  <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Completion</span>
-                </div>
-                <p className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  {participant.stats.completionRate}%
-                </p>
-              </div>
+                  <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingUp className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-purple-500`} />
+                      <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Completion</span>
+                    </div>
+                    <p className={`${compactMode ? 'text-lg' : 'text-xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {participant.stats.completionRate}%
+                    </p>
+                  </div>
 
-              <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <Clock className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-orange-500`} />
-                  <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Response</span>
+                  <div className={`${compactMode ? 'p-2' : 'p-3'} ${compactMode ? 'rounded-lg' : 'rounded-xl'} ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white/80'}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Clock className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'} text-orange-500`} />
+                      <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Response</span>
+                    </div>
+                    <p className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                      {participant.stats.avgResponseTime}
+                    </p>
+                  </div>
                 </div>
-                <p className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  {participant.stats.avgResponseTime}
-                </p>
-              </div>
-            </div>
+              </>
+            )}
           </motion.div>
         ))
         }
