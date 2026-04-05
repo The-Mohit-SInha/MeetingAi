@@ -1005,7 +1005,7 @@ export function Meetings() {
           </div>
         ) : (
           meetings.map((meeting, index) => (
-          <div key={meeting.id} className="relative">
+            <div key={meeting.id} className="relative">
             <Link to={`/meetings/${meeting.id}`}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -1149,8 +1149,8 @@ export function Meetings() {
               <Trash2 className="w-4 h-4" />
             )}
           </motion.button>
-          </div>
-        ))
+            </div>
+          ))
         )}
       </motion.div>
 

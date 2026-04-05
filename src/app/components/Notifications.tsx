@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
 import { notificationsAPI } from "../services/apiWrapper";
-import { 
-  CheckCircle2, 
-  Calendar as CalendarIcon, 
-  MessageSquare, 
-  AlertCircle, 
+import {
+  CheckCircle2,
+  Calendar as CalendarIcon,
+  MessageSquare,
+  AlertCircle,
   Info,
   Bell,
   Loader2,
@@ -16,15 +17,20 @@ import {
 
 export function Notifications() {
   const { theme, compactMode } = useTheme();
+  const { user } = useAuth();
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchNotifications();
-  }, []);
+    if (user) {
+      fetchNotifications();
+    }
+  }, [user]);
 
   const fetchNotifications = async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
 
@@ -34,7 +40,7 @@ export function Notifications() {
         setLoading(false);
       }, 5000);
 
-      const data = await notificationsAPI.getAll();
+      const data = await notificationsAPI.getAll(user.id);
 
       const iconMap: any = {
         action: CheckCircle2,
@@ -91,8 +97,9 @@ export function Notifications() {
     : notifications;
 
   const markAsRead = async (id: string) => {
+    if (!user) return;
     try {
-      await notificationsAPI.markAsRead(id);
+      await notificationsAPI.markAsRead(id, user.id);
       setNotifications(notifications.map(n =>
         n.id === id ? { ...n, isRead: true, is_read: true } : n
       ));
@@ -102,8 +109,9 @@ export function Notifications() {
   };
 
   const deleteNotification = async (id: string) => {
+    if (!user) return;
     try {
-      await notificationsAPI.delete(id);
+      await notificationsAPI.delete(id, user.id);
       setNotifications(notifications.filter(n => n.id !== id));
     } catch (error) {
       console.error("Error deleting notification:", error);
@@ -111,8 +119,9 @@ export function Notifications() {
   };
 
   const markAllAsRead = async () => {
+    if (!user) return;
     try {
-      await notificationsAPI.markAllAsRead();
+      await notificationsAPI.markAllAsRead(user.id);
       setNotifications(notifications.map(n => ({ ...n, isRead: true, is_read: true })));
     } catch (error) {
       console.error("Error marking all as read:", error);

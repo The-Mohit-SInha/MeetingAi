@@ -18,6 +18,19 @@ import {
   Camera
 } from "lucide-react";
 
+const DEPARTMENTS = {
+  'Product Management': ['Product Manager', 'Senior Product Manager', 'Product Lead', 'Chief Product Officer'],
+  'Engineering': ['Software Engineer', 'Senior Software Engineer', 'Engineering Manager', 'Tech Lead', 'CTO'],
+  'Design': ['UI/UX Designer', 'Product Designer', 'Design Lead', 'Creative Director'],
+  'Marketing': ['Marketing Manager', 'Content Strategist', 'Growth Manager', 'CMO'],
+  'Sales': ['Sales Representative', 'Account Executive', 'Sales Manager', 'VP of Sales'],
+  'Operations': ['Operations Manager', 'Project Manager', 'Operations Lead', 'COO'],
+  'Human Resources': ['HR Manager', 'Recruiter', 'People Operations', 'HR Director'],
+  'Finance': ['Financial Analyst', 'Accountant', 'Finance Manager', 'CFO'],
+  'Customer Success': ['Customer Success Manager', 'Support Specialist', 'Account Manager', 'VP of Customer Success'],
+  'Data & Analytics': ['Data Analyst', 'Data Scientist', 'Analytics Manager', 'Data Engineer'],
+};
+
 export function Profile() {
   const { theme, compactMode } = useTheme();
   const { user } = useAuth();
@@ -122,30 +135,12 @@ export function Profile() {
     console.log('🔍 [Profile] Fetching stats for user:', user.id, user.email);
 
     try {
-      // Set a timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
-        console.warn('Profile stats fetch timeout - using default values');
-      }, 5000);
-
-      // Fetch all meetings and count user's participation
+      // Fetch all meetings - these belong to the user
       const allMeetings = await meetingsAPI.getAll(user.id);
       console.log('📊 [Profile] Found meetings:', allMeetings.length);
 
-      let userMeetingCount = 0;
-
-      for (const meeting of allMeetings) {
-        const participants = await participantsAPI.getByMeeting(meeting.id, user.id);
-        // Check if user is a participant (by name or email)
-        const isParticipant = participants.some((p: any) => 
-          p.participant_name?.toLowerCase().includes(user.email?.toLowerCase()) ||
-          p.participant_name?.toLowerCase().includes(profile.name?.toLowerCase())
-        );
-        if (isParticipant) {
-          userMeetingCount++;
-        }
-      }
-
-      console.log('👥 [Profile] User participated in meetings:', userMeetingCount);
+      // All meetings returned belong to this user, so count them all
+      const userMeetingCount = allMeetings.length;
 
       // Fetch all action items
       const allActions = await actionItemsAPI.getAll(user.id);
@@ -160,8 +155,6 @@ export function Profile() {
         actions: totalActions,
         completionRate,
       });
-
-      clearTimeout(timeoutId);
     } catch (error) {
       console.error("❌ [Profile] Error fetching profile stats:", error);
       setProfileStats({ meetings: 0, actions: 0, completionRate: 0 });
@@ -170,7 +163,7 @@ export function Profile() {
 
   const handleSave = async () => {
     if (!user) return;
-    
+
     try {
       await userAPI.updateProfile(user.id, {
         name: profile.name,
@@ -178,6 +171,7 @@ export function Profile() {
         department: profile.department,
         location: profile.location,
         bio: profile.bio,
+        phone: profile.phone,
       });
       setIsEditing(false);
       await fetchProfile(); // Refresh profile data after save
@@ -304,45 +298,75 @@ export function Profile() {
                     type="text"
                     value={profile.name}
                     onChange={(e) => setProfile({...profile, name: e.target.value})}
-                    placeholder=""
+                    placeholder="Your name"
                     className={`${compactMode ? 'text-lg' : 'text-2xl'} font-bold mb-2 w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
-                      theme === 'dark' 
-                        ? 'bg-gray-800 text-white border-gray-700' 
+                      theme === 'dark'
+                        ? 'bg-gray-800 text-white border-gray-700'
                         : 'bg-white text-gray-900 border-gray-200'
                     } border`}
                   />
-                  <input
-                    type="text"
-                    value={profile.role}
-                    onChange={(e) => setProfile({...profile, role: e.target.value})}
-                    placeholder=""
-                    className={`${compactMode ? 'text-sm mb-1' : 'mb-2'} w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
-                      theme === 'dark' 
-                        ? 'bg-gray-800 text-white border-gray-700' 
-                        : 'bg-white text-gray-900 border-gray-200'
-                    } border`}
-                  />
-                  <input
-                    type="text"
-                    value={profile.department}
-                    onChange={(e) => setProfile({...profile, department: e.target.value})}
-                    placeholder=""
-                    className={`${compactMode ? 'text-sm mb-1' : 'mb-2'} w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
-                      theme === 'dark' 
-                        ? 'bg-gray-800 text-white border-gray-700' 
-                        : 'bg-white text-gray-900 border-gray-200'
-                    } border`}
-                  />
-                  <div className="flex items-center gap-2">
+
+                  {/* Department Dropdown */}
+                  <div className="mb-2">
+                    <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Department
+                    </label>
+                    <select
+                      value={profile.department}
+                      onChange={(e) => {
+                        const newDept = e.target.value;
+                        setProfile({
+                          ...profile,
+                          department: newDept,
+                          role: '' // Reset role when department changes
+                        });
+                      }}
+                      className={`w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
+                        theme === 'dark'
+                          ? 'bg-gray-800 text-white border-gray-700'
+                          : 'bg-white text-gray-900 border-gray-200'
+                      } border cursor-pointer`}
+                    >
+                      <option value="">Select Department</option>
+                      {Object.keys(DEPARTMENTS).map((dept) => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Role Dropdown - shown only after department is selected */}
+                  {profile.department && (
+                    <div className="mb-2">
+                      <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Role
+                      </label>
+                      <select
+                        value={profile.role}
+                        onChange={(e) => setProfile({...profile, role: e.target.value})}
+                        className={`w-full ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
+                          theme === 'dark'
+                            ? 'bg-gray-800 text-white border-gray-700'
+                            : 'bg-white text-gray-900 border-gray-200'
+                        } border cursor-pointer`}
+                      >
+                        <option value="">Select Role</option>
+                        {DEPARTMENTS[profile.department as keyof typeof DEPARTMENTS]?.map((role) => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 mt-2">
                     <MapPin className="w-4 h-4 text-gray-500" />
                     <input
                       type="text"
                       value={profile.location}
                       onChange={(e) => setProfile({...profile, location: e.target.value})}
-                      placeholder=""
+                      placeholder="Location"
                       className={`${compactMode ? 'text-sm' : ''} flex-1 ${compactMode ? 'px-2 py-1 rounded' : 'px-3 py-2 rounded-lg'} ${
-                        theme === 'dark' 
-                          ? 'bg-gray-800 text-white border-gray-700' 
+                        theme === 'dark'
+                          ? 'bg-gray-800 text-white border-gray-700'
                           : 'bg-white text-gray-900 border-gray-200'
                       } border`}
                     />

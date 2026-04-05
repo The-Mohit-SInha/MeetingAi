@@ -222,7 +222,7 @@ export const participantsAPI = {
       // Get all unique participants from meetings
       const meetings = localStorage.localMeetingsAPI.getAll(userId);
       const participantsMap = new Map();
-      
+
       meetings.forEach((meeting: any) => {
         const participants = meeting.participants || [];
         participants.forEach((p: any) => {
@@ -238,10 +238,18 @@ export const participantsAPI = {
           participant.meetings += 1;
         });
       });
-      
+
       return Promise.resolve(Array.from(participantsMap.values()));
     }
     return supabaseAPI.participantsAPI.getAll(userId);
+  },
+
+  async getByMeeting(meetingId: string, userId: string) {
+    if (useLocalStorage) {
+      const meeting = localStorage.localMeetingsAPI.getById(meetingId, userId);
+      return Promise.resolve(meeting?.participants || []);
+    }
+    return supabaseAPI.participantsAPI.getByMeeting(meetingId, userId);
   },
 };
 
