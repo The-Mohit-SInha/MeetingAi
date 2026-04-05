@@ -30,7 +30,7 @@ export function Participants() {
 
   const fetchParticipants = async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
 
@@ -40,30 +40,36 @@ export function Participants() {
         setLoading(false);
       }, 5000);
 
+      // Get all participants from all meetings
       const data = await participantsAPI.getAll(user.id);
 
       // Group by participant name and aggregate stats
       const participantMap = new Map();
       data.forEach((p: any) => {
-        if (!participantMap.has(p.participant_name)) {
-          participantMap.set(p.participant_name, {
+        const name = p.participant_name || p.name;
+        if (!participantMap.has(name)) {
+          participantMap.set(name, {
             id: p.id,
-            name: p.participant_name,
-            email: p.participant_email || `${p.participant_name.toLowerCase().replace(' ', '.')}@company.com`,
-            role: p.role || 'Team Member',
-            department: 'General',
-            avatar: p.participant_name.split(' ').map((n: string) => n[0]).join(''),
-            color: `bg-${['blue', 'green', 'purple', 'orange', 'pink'][Math.floor(Math.random() * 5)]}-500`,
+            name: name,
+            email: p.participant_email || p.email || `${name.toLowerCase().replace(/\s+/g, '.')}@company.com`,
+            role: p.role || 'Participant',
+            department: p.department || 'General',
+            avatar: name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2),
+            color: `bg-${['blue', 'green', 'purple', 'orange', 'pink', 'indigo', 'teal'][Math.abs(name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 7]}-500`,
             stats: {
               meetings: 1,
               actions: 0,
               completionRate: 0,
               avgResponseTime: "N/A",
             },
+            meetings: [p.meeting_id],
           });
         } else {
-          const existing = participantMap.get(p.participant_name);
+          const existing = participantMap.get(name);
           existing.stats.meetings += 1;
+          if (!existing.meetings.includes(p.meeting_id)) {
+            existing.meetings.push(p.meeting_id);
+          }
         }
       });
 

@@ -1,4 +1,4 @@
-import { AlertCircle, Clock, Circle, CheckCircle2, ChevronDown, Search, Filter, User, Link2, Calendar, Flag, Loader2, Video, TrendingUp } from "lucide-react";
+import { AlertCircle, Clock, Circle, CheckCircle2, ChevronDown, Search, Filter, User, Link2, Calendar, Flag, Loader2, Video, TrendingUp, Edit2, Save, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
@@ -28,6 +28,8 @@ export function ActionItems() {
   const [selectedPriority, setSelectedPriority] = useState("all");
   const [loading, setLoading] = useState(true);
   const [actionItems, setActionItems] = useState<any[]>([]);
+  const [editingAction, setEditingAction] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
 
   useEffect(() => {
     if (user) {
@@ -104,6 +106,33 @@ export function ActionItems() {
       // Revert on error
       await fetchActionItems();
     }
+  };
+
+  const handleEditAction = (action: any) => {
+    setEditingAction(action.id);
+    setEditForm({
+      title: action.task,
+      assignee: action.assignee.name,
+      priority: action.priority,
+      due_date: action.dueDate,
+    });
+  };
+
+  const handleSaveEdit = async (actionId: string) => {
+    if (!user) return;
+    try {
+      await actionItemsAPI.update(actionId, editForm, user.id);
+      setEditingAction(null);
+      setEditForm({});
+      await fetchActionItems();
+    } catch (error) {
+      console.error("Error updating action:", error);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingAction(null);
+    setEditForm({});
   };
 
   const filteredActions = actionItems.filter((action) => {
@@ -337,6 +366,101 @@ export function ActionItems() {
               whileHover={{ scale: 1.01 }}
               className="glass-card rounded-xl p-4"
             >
+              {editingAction === action.id ? (
+                /* Edit Mode */
+                <div className="space-y-3">
+                  <div>
+                    <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Task
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.title}
+                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg text-sm ${
+                        theme === 'dark'
+                          ? 'bg-gray-800 text-white border-gray-700'
+                          : 'bg-white text-gray-900 border-gray-300'
+                      } border`}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Assignee
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.assignee}
+                        onChange={(e) => setEditForm({ ...editForm, assignee: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg text-sm ${
+                          theme === 'dark'
+                            ? 'bg-gray-800 text-white border-gray-700'
+                            : 'bg-white text-gray-900 border-gray-300'
+                        } border`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Priority
+                      </label>
+                      <select
+                        value={editForm.priority}
+                        onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
+                        className={`w-full px-3 py-2 rounded-lg text-sm ${
+                          theme === 'dark'
+                            ? 'bg-gray-800 text-white border-gray-700'
+                            : 'bg-white text-gray-900 border-gray-300'
+                        } border`}
+                      >
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={editForm.due_date}
+                      onChange={(e) => setEditForm({ ...editForm, due_date: e.target.value })}
+                      className={`w-full px-3 py-2 rounded-lg text-sm ${
+                        theme === 'dark'
+                          ? 'bg-gray-800 text-white border-gray-700'
+                          : 'bg-white text-gray-900 border-gray-300'
+                      } border`}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleSaveEdit(action.id)}
+                      className="flex-1 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2"
+                    >
+                      <Save className="w-4 h-4" />
+                      Save
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleCancelEdit}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 ${
+                        theme === 'dark'
+                          ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                          : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                      }`}
+                    >
+                      <X className="w-4 h-4" />
+                      Cancel
+                    </motion.button>
+                  </div>
+                </div>
+              ) : (
+                /* View Mode */
               <div className="flex items-start gap-3">
                 {/* Assignee Avatar */}
                 <div className={`w-9 h-9 rounded-full ${action.assignee.color} flex items-center justify-center flex-shrink-0 shadow`}>
@@ -433,9 +557,23 @@ export function ActionItems() {
                         From meeting
                       </Link>
                     )}
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleEditAction(action)}
+                      className={`ml-auto px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 ${
+                        theme === 'dark'
+                          ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-900'
+                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                      }`}
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      Edit
+                    </motion.button>
                   </div>
                 </div>
               </div>
+              )}
             </motion.div>
           );
         })
