@@ -707,39 +707,18 @@ export function Meetings() {
         combinedTranscript += `${accountHolderName}: ${micTranscript}\n\n`;
       }
 
-      // Process tab audio with speaker diarization for other participants
+      // Add tab audio transcript to combined transcript
       let participants: string[] = [accountHolderName];
       let extractedActions: any[] = [];
-      let formattedTabTranscript = tabTranscript;
 
       if (tabTranscript && tabTranscript.trim().length > 0) {
-        try {
-          setTranscriptionProgress('🎤 Identifying speakers in tab audio...');
-          console.log('🎤 Processing speaker diarization for tab audio...');
+        console.log('🖥️ Adding tab audio transcript to combined output...');
 
-          // Create audio blob from tab chunks for speaker analysis
-          const tabAudioBlob = new Blob(tabAudioChunks, { type: tabAudioChunks[0]?.type || 'video/webm' });
-          const tabAudioOnly = await convertToAudioBlob(tabAudioBlob);
+        // Simply append the tab transcript - it's already been transcribed by Groq Whisper
+        // Label it generically since we don't have true speaker diarization
+        combinedTranscript += `[Meeting Participants]: ${tabTranscript}\n\n`;
 
-          const diarizationResult = await transcribeWithSpeakerDiarization(tabAudioOnly, accountHolderName);
-
-          // Use diarization results for tab audio
-          formattedTabTranscript = diarizationResult.transcript;
-          participants = [accountHolderName, ...diarizationResult.participants.filter((p: string) => p !== accountHolderName)];
-          extractedActions = diarizationResult.actionItems;
-
-          console.log('✅ Speaker diarization complete:', {
-            participantsCount: participants.length,
-            participants: participants,
-            actionItemsCount: extractedActions.length,
-          });
-
-          combinedTranscript += formattedTabTranscript;
-        } catch (err) {
-          console.error('⚠️ Speaker diarization failed:', err);
-          // Fallback: just append raw tab transcript
-          combinedTranscript += `[Tab Audio]: ${tabTranscript}\n\n`;
-        }
+        console.log('✅ Tab transcript added:', tabTranscript.length, 'chars');
       }
 
       console.log('📝 Combined transcript length:', combinedTranscript.length, 'chars');
