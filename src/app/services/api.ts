@@ -558,7 +558,7 @@ export const analyticsAPI = {
 
     return Array.from(monthlyData.entries()).map(([month, count]) => ({
       month,
-      meetings: count,
+      total_meetings: count,
     }));
   },
 };

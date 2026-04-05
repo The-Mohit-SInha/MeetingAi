@@ -1,10 +1,10 @@
-import { AlertCircle, Clock, Circle, CheckCircle2, ChevronDown, Search, Filter, User, Link2, Calendar, Flag, Loader2, Video } from "lucide-react";
+import { AlertCircle, Clock, Circle, CheckCircle2, ChevronDown, Search, Filter, User, Link2, Calendar, Flag, Loader2, Video, TrendingUp } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
-import { actionItemsAPI } from "../services/api";
+import { actionItemsAPI } from "../services/apiWrapper";
 
 const priorityConfig = {
   high: { color: "from-red-500 to-pink-500", icon: AlertCircle, label: "High" },
@@ -37,15 +37,9 @@ export function ActionItems() {
 
   const fetchActionItems = async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
-
-      // Set a timeout to prevent infinite loading
-      const timeoutId = setTimeout(() => {
-        console.warn('Action items data fetch timeout - using default values');
-        setLoading(false);
-      }, 5000);
 
       const data = await actionItemsAPI.getAll(user.id);
       setActionItems(data.map((item: any) => ({
@@ -53,6 +47,7 @@ export function ActionItems() {
         task: item.title,
         assignee: {
           name: item.assignee,
+          email: item.assignee,
           avatar: item.assignee.split(' ').map((n: string) => n[0]).join(''),
           color: `bg-${['blue', 'green', 'purple', 'orange', 'pink'][Math.floor(Math.random() * 5)]}-500`,
         },
@@ -60,13 +55,54 @@ export function ActionItems() {
         meetingId: item.meeting_id,
         dueDate: item.due_date,
       })));
-
-      clearTimeout(timeoutId);
     } catch (error) {
       console.error("Error fetching action items:", error);
       setActionItems([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const [draggingAction, setDraggingAction] = useState<string | null>(null);
+  const [tempProgress, setTempProgress] = useState<Record<string, number>>({});
+
+  const handleProgressDragStart = (actionId: string, currentProgress: number) => {
+    setDraggingAction(actionId);
+    setTempProgress(prev => ({ ...prev, [actionId]: currentProgress }));
+  };
+
+  const handleProgressDrag = (actionId: string, newProgress: number) => {
+    setTempProgress(prev => ({ ...prev, [actionId]: newProgress }));
+  };
+
+  const handleProgressDragEnd = async (actionId: string, newProgress: number) => {
+    if (!user) return;
+    setDraggingAction(null);
+
+    try {
+      // Determine status based on progress
+      let newStatus: 'todo' | 'in_progress' | 'completed' = 'todo';
+      if (newProgress === 100) {
+        newStatus = 'completed';
+      } else if (newProgress > 0) {
+        newStatus = 'in_progress';
+      }
+
+      // Optimistic update
+      setActionItems(prev => prev.map(item =>
+        item.id === actionId
+          ? { ...item, progress: newProgress, status: newStatus }
+          : item
+      ));
+
+      await actionItemsAPI.update(actionId, {
+        progress: newProgress,
+        status: newStatus
+      }, user.id);
+    } catch (error) {
+      console.error("Error updating progress:", error);
+      // Revert on error
+      await fetchActionItems();
     }
   };
 
@@ -286,6 +322,11 @@ export function ActionItems() {
           filteredActions.map((action, index) => {
             const StatusIcon = statusConfig[action.status]?.icon || Circle;
             const statusColor = statusConfig[action.status]?.color || "from-gray-500 to-slate-500";
+            const isAssignedToCurrentUser = user && (action.assignee.email === user.email || action.assignee.name === user.email);
+            const isDragging = draggingAction === action.id;
+            const displayProgress = isDragging
+              ? (tempProgress[action.id] ?? action.progress ?? 0)
+              : (action.status === 'completed' ? 100 : (action.progress || 0));
 
             return (
             <motion.div
@@ -294,7 +335,7 @@ export function ActionItems() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 + index * 0.03 }}
               whileHover={{ scale: 1.01 }}
-              className="glass-card rounded-xl p-4 cursor-pointer"
+              className="glass-card rounded-xl p-4"
             >
               <div className="flex items-start gap-3">
                 {/* Assignee Avatar */}
@@ -319,22 +360,58 @@ export function ActionItems() {
                     </span>
                   </div>
 
-                  {/* Thin progress bar */}
+                  {/* Progress bar */}
                   <div className="mb-2">
-                    <div className={`h-1.5 rounded-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${action.status === 'completed' ? 100 : (action.progress || 0)}%` }}
-                        transition={{ duration: 0.8 }}
-                        className={`h-full rounded-full ${
-                          action.status === 'completed'
-                            ? 'bg-gradient-to-r from-green-400 to-emerald-500'
-                            : action.status === 'in_progress'
-                            ? 'bg-gradient-to-r from-blue-400 to-indigo-500'
-                            : 'bg-gradient-to-r from-gray-300 to-gray-400'
-                        }`}
-                      />
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={`flex-1 h-1.5 rounded-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                        <motion.div
+                          animate={{ width: `${displayProgress}%` }}
+                          transition={{ duration: isDragging ? 0 : 0.3 }}
+                          className={`h-full rounded-full ${
+                            displayProgress === 100
+                              ? 'bg-gradient-to-r from-green-400 to-emerald-500'
+                              : displayProgress > 0
+                              ? 'bg-gradient-to-r from-blue-400 to-indigo-500'
+                              : 'bg-gradient-to-r from-gray-300 to-gray-400'
+                          }`}
+                        />
+                      </div>
+                      <span className={`text-xs font-semibold min-w-[2.5rem] text-right ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {displayProgress}%
+                      </span>
                     </div>
+
+                    {/* Draggable progress slider (only for assigned user) */}
+                    {isAssignedToCurrentUser && action.status !== 'completed' && (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className={`w-3.5 h-3.5 flex-shrink-0 ${isDragging ? 'text-blue-500' : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                          <div className="relative flex-1">
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              step="5"
+                              value={displayProgress}
+                              onMouseDown={() => handleProgressDragStart(action.id, displayProgress)}
+                              onTouchStart={() => handleProgressDragStart(action.id, displayProgress)}
+                              onChange={(e) => handleProgressDrag(action.id, parseInt(e.target.value))}
+                              onMouseUp={(e) => handleProgressDragEnd(action.id, parseInt(e.currentTarget.value))}
+                              onTouchEnd={(e) => handleProgressDragEnd(action.id, parseInt(e.currentTarget.value))}
+                              className={`w-full h-2 rounded-lg appearance-none cursor-grab active:cursor-grabbing ${
+                                isDragging ? 'outline outline-2 outline-blue-500' : ''
+                              }`}
+                              style={{
+                                background: `linear-gradient(to right, rgb(59 130 246) 0%, rgb(59 130 246) ${displayProgress}%, ${theme === 'dark' ? '#374151' : '#e5e7eb'} ${displayProgress}%, ${theme === 'dark' ? '#374151' : '#e5e7eb'} 100%)`
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <p className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Drag to update progress
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className={`flex items-center gap-3 flex-wrap text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>

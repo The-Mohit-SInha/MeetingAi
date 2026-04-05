@@ -17,38 +17,32 @@ export function TranscriptionTestPanel() {
     setResults([]);
     const testResults: TestResult[] = [];
 
-    // Test 1: Health check
+    // Test 1: Health check - Test Groq API directly
     try {
       testResults.push({ step: 'Health Check', status: 'pending', message: 'Checking Groq API configuration...' });
       setResults([...testResults]);
 
-      const healthResponse = await fetch('https://qjrmxudyrwcqwpkmrggn.supabase.co/functions/v1/transcribe/health');
+      const groqTestResponse = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: {
+          'Authorization': 'Bearer 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',
+        },
+      });
 
-      if (!healthResponse.ok) {
+      if (!groqTestResponse.ok) {
         testResults[0] = {
           step: 'Health Check',
           status: 'error',
-          message: `Edge function not responding (${healthResponse.status})`,
+          message: `Groq API not responding (${groqTestResponse.status})`,
           data: { configured: false },
         };
       } else {
-        const healthData = await healthResponse.json();
-
-        if (healthData.configured) {
-          testResults[0] = {
-            step: 'Health Check',
-            status: 'success',
-            message: `Groq API is configured (${healthData.model})`,
-            data: healthData,
-          };
-        } else {
-          testResults[0] = {
-            step: 'Health Check',
-            status: 'error',
-            message: 'GROQ_API_KEY not set in Supabase environment',
-            data: healthData,
-          };
-        }
+        const models = await groqTestResponse.json();
+        testResults[0] = {
+          step: 'Health Check',
+          status: 'success',
+          message: `Groq API is configured (${models.data?.length || 0} models available)`,
+          data: { configured: true, modelCount: models.data?.length },
+        };
       }
     } catch (error: any) {
       testResults[0] = {

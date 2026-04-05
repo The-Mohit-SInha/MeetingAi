@@ -3,13 +3,14 @@ import { useAuth } from "../context/AuthContext";
 import { useState, useEffect } from "react";
 import { analyticsAPI } from "../services/apiWrapper";
 import { motion } from "motion/react";
-import { Calendar, CheckSquare, TrendingUp, Users, Loader2, ArrowUp, ArrowDown } from "lucide-react";
+import { Calendar, CheckSquare, TrendingUp, Users, Loader2, ArrowUp, ArrowDown, RefreshCw } from "lucide-react";
 import { MeetingsTrendChart, ActionsPieChart, DurationBarChart } from "./ChartComponents";
 
 export function Analytics() {
   const { theme, compactMode } = useTheme();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalMeetings: 0,
     totalActions: 0,
@@ -24,43 +25,81 @@ export function Analytics() {
   useEffect(() => {
     if (user) {
       fetchAnalytics();
+
+      // Auto-refresh every 30 seconds
+      const interval = setInterval(() => {
+        fetchAnalytics(true);
+      }, 30000);
+
+      return () => clearInterval(interval);
     }
   }, [user]);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (isAutoRefresh = false) => {
     if (!user) return;
-    
+
     try {
-      setLoading(true);
+      if (!isAutoRefresh) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
 
       // Set a timeout to prevent infinite loading
       const timeoutId = setTimeout(() => {
         console.warn('Analytics data fetch timeout - using default values');
-        setLoading(false);
+        if (!isAutoRefresh) {
+          setLoading(false);
+        } else {
+          setRefreshing(false);
+        }
       }, 5000);
 
-      const monthTrends = await analyticsAPI.getMeetingTrends(user.id);
-      setMeetingsByMonth(monthTrends.map((m: any, i: number) => {
+      console.log('📊 Fetching analytics data...');
+
+      const [monthTrends, statusBreakdown, durationStats, engagement] = await Promise.all([
+        analyticsAPI.getMeetingTrends(user.id).catch(err => {
+          console.error('❌ Failed to fetch meeting trends:', err);
+          return [];
+        }),
+        analyticsAPI.getActionsByStatus(user.id).catch(err => {
+          console.error('❌ Failed to fetch action status:', err);
+          return { completed: 0, in_progress: 0, todo: 0 };
+        }),
+        analyticsAPI.getMeetingDuration(user.id).catch(err => {
+          console.error('❌ Failed to fetch meeting duration:', err);
+          return { '0-30': 0, '30-60': 0, '60-90': 0, '90+': 0 };
+        }),
+        analyticsAPI.getParticipantEngagement(user.id).catch(err => {
+          console.error('❌ Failed to fetch participant engagement:', err);
+          return [];
+        })
+      ]);
+
+      console.log('📈 Month trends:', monthTrends);
+      console.log('📋 Status breakdown:', statusBreakdown);
+      console.log('⏱️ Duration stats:', durationStats);
+      console.log('👥 Participant engagement:', engagement);
+
+      setMeetingsByMonth((monthTrends || []).map((m: any, i: number) => {
         // Handle both date strings and month strings (YYYY-MM format)
-        const monthStr = m.month.includes('-')
+        const monthStr = m.month && m.month.includes('-')
           ? new Date(m.month + '-01').toLocaleDateString('en-US', { month: 'short' })
-          : m.month;
+          : m.month || 'Unknown';
         return {
           month: monthStr,
-          meetings: m.total_meetings,
+          meetings: m.total_meetings || 0,
           actions: 0,
           id: `month-${i}`,
         };
       }));
 
-      const statusBreakdown = await analyticsAPI.getActionsByStatus(user.id);
       setActionsByStatus([
         { name: "Completed", value: statusBreakdown.completed || 0, color: "#10b981", id: "completed" },
         { name: "In Progress", value: statusBreakdown.in_progress || 0, color: "#3b82f6", id: "in-progress" },
         { name: "To Do", value: statusBreakdown.todo || 0, color: "#f59e0b", id: "todo" },
       ]);
 
-      const durationStats = await analyticsAPI.getMeetingDuration(user.id);
       setMeetingDuration([
         { duration: "0-30 min", count: durationStats['0-30'] || 0, id: "d1" },
         { duration: "30-60 min", count: durationStats['30-60'] || 0, id: "d2" },
@@ -68,10 +107,9 @@ export function Analytics() {
         { duration: "90+ min", count: durationStats['90+'] || 0, id: "d4" },
       ]);
 
-      const engagement = await analyticsAPI.getParticipantEngagement(user.id);
-      setParticipantEngagement(engagement.slice(0, 5).map((p: any, i: number) => ({
-        name: p.participant_name,
-        meetings: p.meeting_count,
+      setParticipantEngagement((engagement || []).slice(0, 5).map((p: any, i: number) => ({
+        name: p.participant_name || 'Unknown',
+        meetings: p.meeting_count || 0,
         actions: 0,
         id: `participant-${i}`,
       })));
@@ -86,12 +124,21 @@ export function Analytics() {
         totalParticipants: engagement.length,
       });
 
+      console.log('✅ Analytics data loaded successfully');
       clearTimeout(timeoutId);
     } catch (error) {
-      console.error("Error fetching analytics:", error);
+      console.error("❌ Error fetching analytics:", error);
     } finally {
-      setLoading(false);
+      if (!isAutoRefresh) {
+        setLoading(false);
+      } else {
+        setRefreshing(false);
+      }
     }
+  };
+
+  const handleRefresh = () => {
+    fetchAnalytics(false);
   };
 
   const statsCards = [
@@ -115,13 +162,30 @@ export function Analytics() {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
+        className="flex justify-between items-start"
       >
-        <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-          Analytics
-        </h1>
-        <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-          Insights and metrics from your meetings
-        </p>
+        <div>
+          <h1 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+            Analytics
+          </h1>
+          <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+            Insights and metrics from your meetings
+          </p>
+        </div>
+        <motion.button
+          onClick={handleRefresh}
+          disabled={loading || refreshing}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-white transition-all ${
+            loading || refreshing
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:shadow-lg'
+          }`}
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </motion.button>
       </motion.div>
 
       {/* Stats Grid */}

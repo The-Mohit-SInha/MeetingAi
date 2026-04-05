@@ -308,7 +308,11 @@ export const analyticsAPI = {
       };
 
       meetings.forEach(m => {
-        const duration = parseInt(m.duration) || 0;
+        // Parse duration - handle formats like "30 min", "60", "1 hour", etc.
+        const durationStr = m.duration?.toString() || '0';
+        const durationMatch = durationStr.match(/(\d+)/);
+        const duration = durationMatch ? parseInt(durationMatch[1]) : 0;
+
         if (duration <= 30) durations['0-30']++;
         else if (duration <= 60) durations['30-60']++;
         else if (duration <= 90) durations['60-90']++;
@@ -317,7 +321,7 @@ export const analyticsAPI = {
 
       return Promise.resolve(durations);
     }
-    
+
     // For Supabase, implement similar logic
     const meetings = await meetingsAPI.getAll(uid);
     const durations: Record<string, number> = {
@@ -328,7 +332,11 @@ export const analyticsAPI = {
     };
 
     meetings.forEach((m: any) => {
-      const duration = parseInt(m.duration) || 0;
+      // Parse duration - handle formats like "30 min", "60", "1 hour", etc.
+      const durationStr = m.duration?.toString() || '0';
+      const durationMatch = durationStr.match(/(\d+)/);
+      const duration = durationMatch ? parseInt(durationMatch[1]) : 0;
+
       if (duration <= 30) durations['0-30']++;
       else if (duration <= 60) durations['30-60']++;
       else if (duration <= 90) durations['60-90']++;
@@ -345,13 +353,15 @@ export const analyticsAPI = {
       const participantCounts = new Map();
 
       meetings.forEach(meeting => {
-        const participants = meeting.participants || [];
+        const participants = meeting.participants || meeting.meeting_participants || [];
         participants.forEach((p: any) => {
-          const name = p.participant_name;
-          if (!participantCounts.has(name)) {
-            participantCounts.set(name, { participant_name: name, meeting_count: 0 });
+          const name = p.participant_name || p.name;
+          if (name) {
+            if (!participantCounts.has(name)) {
+              participantCounts.set(name, { participant_name: name, meeting_count: 0 });
+            }
+            participantCounts.get(name).meeting_count++;
           }
-          participantCounts.get(name).meeting_count++;
         });
       });
 
@@ -361,12 +371,25 @@ export const analyticsAPI = {
       );
     }
 
-    // For Supabase
-    const participants = await participantsAPI.getAll(uid);
-    return participants.map((p: any) => ({
-      participant_name: p.name,
-      meeting_count: p.meetings,
-    })).sort((a, b) => b.meeting_count - a.meeting_count);
+    // For Supabase - get all meetings with participants
+    const meetings = await meetingsAPI.getAll(uid);
+    const participantCounts = new Map();
+
+    meetings.forEach((meeting: any) => {
+      const participants = meeting.meeting_participants || [];
+      participants.forEach((p: any) => {
+        const name = p.participant_name;
+        if (name) {
+          if (!participantCounts.has(name)) {
+            participantCounts.set(name, { participant_name: name, meeting_count: 0 });
+          }
+          participantCounts.get(name).meeting_count++;
+        }
+      });
+    });
+
+    return Array.from(participantCounts.values())
+      .sort((a, b) => b.meeting_count - a.meeting_count);
   },
 };
 
