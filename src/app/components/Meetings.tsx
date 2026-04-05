@@ -1134,7 +1134,7 @@ export function Meetings() {
             whileTap={{ scale: 0.95 }}
             onClick={(e) => handleDeleteMeeting(meeting, e)}
             disabled={deletingMeetingId === meeting.id}
-            className={`absolute top-4 right-4 p-2 rounded-lg transition-colors ${
+            className={`absolute bottom-3 right-3 p-1.5 rounded-lg transition-colors z-10 ${
               deletingMeetingId === meeting.id
                 ? 'bg-gray-400 cursor-not-allowed'
                 : theme === 'dark'
