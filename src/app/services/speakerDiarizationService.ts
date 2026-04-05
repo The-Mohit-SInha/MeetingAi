@@ -16,7 +16,7 @@ interface SpeakerIdentity {
 }
 
 // Extract participant names from transcript using common patterns
-function extractParticipantNames(transcript: string): string[] {
+export function extractParticipantNames(transcript: string): string[] {
   const names = new Set<string>();
 
   // Pattern 1: "This is [Name] speaking"

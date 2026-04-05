@@ -36,6 +36,12 @@ const settingsSections = [
     description: "View storage configuration"
   },
   {
+    id: "api-keys",
+    title: "API Keys",
+    icon: Key,
+    description: "Configure AI services for better features"
+  },
+  {
     id: "account",
     title: "Account Settings",
     icon: User,
@@ -93,12 +99,21 @@ export function Settings() {
     twoFactorAuth: false,
   });
 
+  // API Keys state
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+
   useEffect(() => {
     if (user) {
       fetchSettings();
-
     }
     setIsDbConfigured(isSupabaseConfigured());
+
+    // Load Gemini API key from localStorage
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) {
+      setGeminiApiKey(savedKey);
+    }
   }, [user]);
 
   const fetchSettings = async () => {
@@ -371,6 +386,108 @@ export function Settings() {
                     }`}>
                       {isDbConfigured ? 'Enabled' : 'Disabled'}
                     </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* API Keys Settings */}
+          {activeSection === "api-keys" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'} mb-2`}>API Keys</h2>
+                <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>Configure AI services for enhanced features</p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Gemini API Key Card */}
+                <div className={`p-6 ${theme === 'dark' ? 'bg-gradient-to-br from-gray-800/80 to-gray-900/80' : 'bg-gradient-to-br from-white to-gray-50'} rounded-xl border-2 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className={`w-12 h-12 ${theme === 'dark' ? 'bg-blue-900/50' : 'bg-blue-100'} rounded-xl flex items-center justify-center`}>
+                      <Camera className={`w-6 h-6 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`} />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`text-lg font-bold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        Google Gemini Vision API
+                      </h3>
+                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Extract participant names from video recordings with AI vision
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className={`p-4 ${theme === 'dark' ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200'} rounded-lg border mb-4`}>
+                    <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-blue-300' : 'text-blue-900'} mb-2`}>✨ What this enables:</p>
+                    <ul className={`text-xs ${theme === 'dark' ? 'text-blue-200' : 'text-blue-800'} space-y-1`}>
+                      <li>✓ Intelligent reading of participant names from video tiles</li>
+                      <li>✓ Better speaker identification in transcripts</li>
+                      <li>✓ Reduces "Unknown Speaker" labels</li>
+                      <li>✓ Works with Zoom, Google Meet, Microsoft Teams, and more</li>
+                    </ul>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className={`block text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                        API Key
+                      </label>
+                      <input
+                        type="password"
+                        value={geminiApiKey}
+                        onChange={(e) => {
+                          setGeminiApiKey(e.target.value);
+                          setApiKeySaved(false);
+                        }}
+                        placeholder="Enter your Gemini API key"
+                        className={`w-full px-4 py-2 ${theme === 'dark' ? 'bg-gray-700 text-white border-gray-600' : 'bg-white border-gray-300'} border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm`}
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          if (geminiApiKey.trim()) {
+                            localStorage.setItem('gemini_api_key', geminiApiKey.trim());
+                            setApiKeySaved(true);
+                            setTimeout(() => setApiKeySaved(false), 3000);
+                          }
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                        disabled={!geminiApiKey.trim()}
+                      >
+                        <Save className="w-4 h-4" />
+                        {apiKeySaved ? 'Saved!' : 'Save API Key'}
+                      </button>
+
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 transition-all"
+                      >
+                        <Key className="w-4 h-4" />
+                        Get Free API Key
+                      </a>
+                    </div>
+
+                    {apiKeySaved && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`p-3 ${theme === 'dark' ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'} rounded-lg flex items-center gap-2`}
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-sm font-medium">API key saved successfully! It will be used for the next recording.</span>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  <div className={`mt-4 p-3 ${theme === 'dark' ? 'bg-gray-700/50' : 'bg-gray-100'} rounded-lg`}>
+                    <p className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>🔒 Privacy Note:</p>
+                    <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Your API key is stored locally in your browser and never sent to our servers. It's only used to call Google's Gemini API directly from your browser.
+                    </p>
                   </div>
                 </div>
               </div>

@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   Mic,
   Square,
-  Monitor
+  Monitor,
+  Upload,
+  FileText
 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
@@ -34,9 +36,11 @@ import { transcribeAudioBlob } from "../services/localTranscriptionService";
 import { transcribeWithGroq, isGroqConfigured } from "../services/groqTranscriptionService";
 import { transcribeWithGroqDirect, convertToAudioBlob } from "../services/groqDirectService";
 import { generateMeetingSummary, generateMeetingTitle } from "../services/groqLLMService";
-import { transcribeWithSpeakerDiarization, saveParticipantsToMeeting, formatTranscriptWithSpeakers, extractActionItemsFromTranscript } from "../services/speakerDiarizationService";
-import { RecordingDiagnostic } from "./RecordingDiagnostic";
+import { saveParticipantsToMeeting } from "../services/speakerDiarizationService";
+import { formatCombinedTranscript } from "../services/transcriptFormattingService";
+import { extractParticipantsFromVideo } from "../services/videoOCRService";
 import { AudioLevelIndicator } from "./AudioLevelIndicator";
+import { testGeminiVisionWithImage } from "../utils/testGeminiVision";
 
 export function Meetings() {
   const { theme, compactMode } = useTheme();
@@ -83,6 +87,18 @@ export function Meetings() {
   const [deletingMeetingId, setDeletingMeetingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [meetingToDelete, setMeetingToDelete] = useState<any>(null);
+
+  // Audio upload states
+  const [showAudioUploadModal, setShowAudioUploadModal] = useState(false);
+  const [uploadedAudioFile, setUploadedAudioFile] = useState<File | null>(null);
+  const [audioUploadTitle, setAudioUploadTitle] = useState("");
+  const [processingAudioUpload, setProcessingAudioUpload] = useState(false);
+
+  // Transcript upload states
+  const [showTranscriptUploadModal, setShowTranscriptUploadModal] = useState(false);
+  const [uploadedTranscript, setUploadedTranscript] = useState("");
+  const [transcriptUploadTitle, setTranscriptUploadTitle] = useState("");
+  const [processingTranscriptUpload, setProcessingTranscriptUpload] = useState(false);
 
   // Parallel recording states (mic + tab simultaneously)
   const [micMediaStream, setMicMediaStream] = useState<MediaStream | null>(null);
@@ -610,39 +626,54 @@ export function Meetings() {
       // Process microphone audio (user's own speech)
       if (micAudioChunks.length > 0) {
         setTranscriptionProgress('🎙️ Transcribing microphone audio (your speech)...');
-        console.log('🎙️ Processing microphone audio...');
+        console.log('🎙️ ═══════════════════════════════════════════════════════');
+        console.log('🎙️ PROCESSING MICROPHONE AUDIO - START');
+        console.log('🎙️ ═══════════════════════════════════════════════════════');
 
         // For microphone, we have live transcription from Web Speech API
         // Use the current recording session's transcript
         micTranscript = transcriptRef.current?.trim() || '';
-        console.log('🎙️ Live transcript from Web Speech API:', micTranscript.length, 'chars');
+        console.log('🎙️ Microphone transcript from Web Speech API:', micTranscript);
+        console.log('🎙️ Microphone transcript length:', micTranscript.length, 'chars');
 
         // If Web Speech API didn't capture anything, try Whisper
         if (!micTranscript || micTranscript.length === 0) {
           try {
+            console.log('⚠️ Web Speech API returned empty, trying Groq Whisper as fallback...');
             const micBlob = new Blob(micAudioChunks, { type: 'audio/webm' });
             console.log('📊 Mic audio blob:', {
               size: `${(micBlob.size / 1024).toFixed(2)} KB`,
               chunks: micAudioChunks.length,
             });
 
+            console.log('📤 Calling Groq Whisper API for microphone transcription...');
             micTranscript = await transcribeWithGroqDirect(micBlob, {
               language: 'en',
               temperature: 0,
               model: 'whisper-large-v3-turbo'
             });
+
+            console.log('✅ Whisper fallback transcription:', micTranscript);
           } catch (err) {
             console.error('❌ Microphone transcription failed:', err);
           }
         }
 
-        console.log('✅ Microphone transcript length:', micTranscript.length, 'chars');
+        console.log('🎙️ ═══════════════════════════════════════════════════════');
+        console.log('✅ MICROPHONE TRANSCRIPTION COMPLETE');
+        console.log('📝 Final microphone transcript:', micTranscript);
+        console.log('📏 Final microphone transcript length:', micTranscript.length, 'chars');
+        console.log('🎙️ ═══════════════════════════════════════════════════════');
+      } else {
+        console.warn('⚠️ No microphone audio chunks captured');
       }
 
       // Process tab audio (other participants/meeting audio)
       if (tabAudioChunks.length > 0) {
         setTranscriptionProgress('🖥️ Transcribing tab audio (meeting participants)...');
-        console.log('🖥️ Processing tab audio...');
+        console.log('🖥️ ═══════════════════════════════════════════════════════');
+        console.log('🖥️ PROCESSING TAB AUDIO - START');
+        console.log('🖥️ ═══════════════════════════════════════════════════════');
 
         const tabBlob = new Blob(tabAudioChunks, { type: tabAudioChunks[0]?.type || 'video/webm' });
         console.log('📊 Tab audio blob:', {
@@ -654,21 +685,41 @@ export function Meetings() {
         if (tabBlob.size > 0) {
           try {
             setTranscriptionProgress('Converting video to audio...');
+            console.log('🔄 Converting video blob to audio format...');
             const audioBlob = await convertToAudioBlob(tabBlob);
+            console.log('✅ Audio conversion complete:', {
+              size: `${(audioBlob.size / 1024 / 1024).toFixed(2)} MB`,
+              type: audioBlob.type,
+            });
 
             setTranscriptionProgress('🖥️ Transcribing tab audio with Groq Whisper AI...');
+            console.log('📤 Calling Groq Whisper API for tab audio transcription...');
+
             tabTranscript = await transcribeWithGroqDirect(audioBlob, {
               language: 'en',
               temperature: 0,
               model: 'whisper-large-v3-turbo'
             });
 
-            console.log('✅ Tab transcript length:', tabTranscript.length, 'chars');
-          } catch (err) {
-            console.error('❌ Tab audio transcription failed:', err);
+            console.log('🖥️ ═══════════════════════════════════════════════════════');
+            console.log('✅ TAB AUDIO TRANSCRIPTION COMPLETE');
+            console.log('📝 Tab transcript:', tabTranscript);
+            console.log('📏 Tab transcript length:', tabTranscript.length, 'chars');
+            console.log('🖥️ ═══════════════════════════════════════════════════════');
+          } catch (err: any) {
+            console.error('🖥️ ═══════════════════════════════════════════════════════');
+            console.error('❌ TAB AUDIO TRANSCRIPTION FAILED');
+            console.error('❌ Error details:', err);
+            console.error('❌ Error message:', err.message);
+            console.error('❌ Error stack:', err.stack);
+            console.error('🖥️ ═══════════════════════════════════════════════════════');
             tabTranscript = '';
           }
+        } else {
+          console.warn('⚠️ Tab audio blob is empty (0 bytes)');
         }
+      } else {
+        console.warn('⚠️ No tab audio chunks captured');
       }
 
       setTranscriptionProgress('');
@@ -702,26 +753,124 @@ export function Meetings() {
 
       console.log('👤 Account holder name:', accountHolderName);
 
-      // Label microphone audio with account holder's name
-      if (micTranscript && micTranscript.trim().length > 0) {
-        combinedTranscript += `${accountHolderName}: ${micTranscript}\n\n`;
-      }
+      // ══════════════════════════════════════════════════════════════════════
+      // Extract participant names from video using OCR
+      // This reads the name overlays shown in online meeting recordings
+      // ══════════════════════════════════════════════════════════════════════
 
-      // Add tab audio transcript to combined transcript
       let participants: string[] = [accountHolderName];
       let extractedActions: any[] = [];
 
-      if (tabTranscript && tabTranscript.trim().length > 0) {
-        console.log('🖥️ Adding tab audio transcript to combined output...');
+      // Extract participant names from video frames using OCR
+      const videoParticipants: string[] = [];
+      if (tabAudioChunks.length > 0) {
+        try {
+          setTranscriptionProgress('👁️ Reading participant names from video...');
+          const tabBlob = new Blob(tabAudioChunks, { type: tabAudioChunks[0]?.type || 'video/webm' });
 
-        // Simply append the tab transcript - it's already been transcribed by Groq Whisper
-        // Label it generically since we don't have true speaker diarization
-        combinedTranscript += `[Meeting Participants]: ${tabTranscript}\n\n`;
+          console.log('👁️ Extracting participants from video frames...');
 
-        console.log('✅ Tab transcript added:', tabTranscript.length, 'chars');
+          // Get Gemini API key from localStorage (user can set it in Settings)
+          const geminiApiKey = localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyBNNwlGcLOcJH16HNGM2gtNalnF2_vfFWw';
+
+          if (!geminiApiKey || geminiApiKey === 'your-gemini-api-key-here') {
+            console.log('');
+            console.log('⚠️ ═══════════════════════════════════════════════════════');
+            console.log('⚠️ NO GEMINI API KEY CONFIGURED');
+            console.log('⚠️ ═══════════════════════════════════════════════════════');
+            console.log('💡 For accurate participant name extraction from video:');
+            console.log('   1. Go to Settings → API Keys');
+            console.log('   2. Get a free API key from: https://aistudio.google.com/app/apikey');
+            console.log('   3. Paste it in the Gemini API Key field and click Save');
+            console.log('');
+            console.log('📝 Falling back to Tesseract OCR (less accurate)...');
+            console.log('⚠️ ═══════════════════════════════════════════════════════');
+            console.log('');
+          }
+
+          const extractedNames = await extractParticipantsFromVideo(tabBlob, {
+            numFrames: 15, // Sample more frames to catch all participants when they speak (with green border)
+            minConfidence: 60,
+            geminiApiKey: geminiApiKey
+          });
+
+          // Store video-extracted participants
+          videoParticipants.push(...extractedNames);
+
+          // Add video-extracted participants to the list
+          extractedNames.forEach(name => {
+            if (name && !participants.includes(name)) {
+              participants.push(name);
+            }
+          });
+
+          console.log('👥 Participants from video frames:', extractedNames.join(', ') || 'none found');
+
+          if (extractedNames.length > 0) {
+            console.log('');
+            console.log('✅ ═══════════════════════════════════════════════════════');
+            console.log('✅ SUCCESS: Extracted names from video frames!');
+            console.log('✅ These names will be used to label speakers in transcript');
+            console.log('✅ Names found:', extractedNames.join(', '));
+            console.log('✅ ═══════════════════════════════════════════════════════');
+            console.log('');
+          } else {
+            console.log('');
+            console.log('⚠️ ═══════════════════════════════════════════════════════');
+            console.log('⚠️ WARNING: No names extracted from video frames!');
+            console.log('⚠️ Transcript will use "Unknown Speaker" labels');
+            console.log('⚠️ Check console logs above for Gemini API errors');
+            console.log('⚠️ ═══════════════════════════════════════════════════════');
+            console.log('');
+          }
+        } catch (err) {
+          console.warn('⚠️ Video OCR extraction failed:', err);
+          console.log('ℹ️ This is expected if the video has no visible name overlays');
+        }
       }
 
-      console.log('📝 Combined transcript length:', combinedTranscript.length, 'chars');
+      // ══════════════════════════════════════════════════════════════════════
+      // Format transcript with speaker labels using AI
+      // ══════════════════════════════════════════════════════════════════════
+
+      console.log('');
+      console.log('🎯 ═══════════════════════════════════════════════════════');
+      console.log('🎯 FORMATTING TRANSCRIPT WITH SPEAKER LABELS');
+      console.log('🎯 Video-extracted participants to use:', videoParticipants.length > 0 ? videoParticipants.join(', ') : 'NONE');
+      console.log('🎯 ═══════════════════════════════════════════════════════');
+      console.log('');
+
+      // Use AI to format the combined transcript with proper speaker labels
+      // Pass video-extracted participants to help the AI identify speakers
+      const formattingResult = await formatCombinedTranscript(
+        micTranscript,
+        tabTranscript,
+        accountHolderName,
+        videoParticipants.length > 0 ? videoParticipants : undefined
+      );
+
+      combinedTranscript = formattingResult.formattedText;
+
+      // Merge participants from all sources: video OCR, AI transcript analysis
+      if (formattingResult.participants && formattingResult.participants.length > 0) {
+        formattingResult.participants.forEach(name => {
+          if (name && !participants.includes(name)) {
+            participants.push(name);
+          }
+        });
+      }
+
+      // Ensure account holder is at the start of the list
+      if (!participants.includes(accountHolderName)) {
+        participants.unshift(accountHolderName);
+      }
+
+      console.log('📝 ═══════════════════════════════════════════════════════');
+      console.log('📝 FORMATTED TRANSCRIPT WITH SPEAKER LABELS');
+      console.log('👥 All participants (video OCR + AI analysis):', participants.join(', '));
+      console.log('📏 Formatted transcript length:', combinedTranscript.length, 'chars');
+      console.log('📝 Formatted transcript preview:', combinedTranscript.substring(0, 400) + (combinedTranscript.length > 400 ? '...' : ''));
+      console.log('📝 ═══════════════════════════════════════════════════════');
       setTranscript(combinedTranscript);
 
       // Process audio with AI for summary and action items
@@ -730,6 +879,10 @@ export function Meetings() {
 
       if (combinedTranscript && combinedTranscript.trim().length > 0) {
         try {
+          console.log('🤖 ═══════════════════════════════════════════════════════');
+          console.log('🤖 STARTING AI ANALYSIS');
+          console.log('🤖 ═══════════════════════════════════════════════════════');
+
           // Generate meeting title from transcript if using default title
           if (!recordingTitle || recordingTitle.trim().length === 0) {
             setTranscriptionProgress('🤖 Generating meeting title...');
@@ -740,9 +893,25 @@ export function Meetings() {
 
           setTranscriptionProgress('🤖 Analyzing transcript and extracting action items...');
           console.log('🤖 Generating meeting summary with AI...');
+          console.log('📤 Sending to Groq LLM API...');
 
           const summaryResult = await generateMeetingSummary(combinedTranscript, generatedTitle);
           aiSummary = summaryResult.summary;
+
+          console.log('✅ AI Summary received:', aiSummary);
+          console.log('✅ Key points:', summaryResult.keyPoints);
+          console.log('✅ Participants from AI:', summaryResult.participants);
+          console.log('✅ Action items from AI:', summaryResult.actionItems);
+
+          // Merge AI-extracted participants with manually extracted ones
+          if (summaryResult.participants && summaryResult.participants.length > 0) {
+            summaryResult.participants.forEach(name => {
+              if (name && !participants.includes(name)) {
+                participants.push(name);
+              }
+            });
+            console.log('👥 Updated participant list after AI analysis:', participants);
+          }
 
           // Use AI-extracted action items from the full combined transcript
           if (summaryResult.actionItems && summaryResult.actionItems.length > 0) {
@@ -754,18 +923,24 @@ export function Meetings() {
               priority: item.priority,
             }));
             console.log('✅ Extracted action items from AI analysis:', extractedActions.length);
+            extractedActions.forEach((action, i) => {
+              console.log(`  ${i + 1}. [${action.priority}] ${action.title} → ${action.assignee}`);
+            });
+          } else {
+            console.log('ℹ️ No action items extracted from transcript');
           }
 
-          console.log('✅ AI Summary generated:', {
-            summary: aiSummary.substring(0, 100),
-            actionItemsCount: extractedActions.length,
-          });
+          console.log('🤖 ═══════════════════════════════════════════════════════');
+          console.log('✅ AI ANALYSIS COMPLETE');
+          console.log('🤖 ═══════════════════════════════════════════════════════');
 
           setTranscriptionProgress('');
         } catch (summaryErr: any) {
-          console.error('⚠️ AI processing failed:', summaryErr);
+          console.error('❌ AI processing failed:', summaryErr);
           aiSummary = combinedTranscript.substring(0, 200) + (combinedTranscript.length > 200 ? '...' : '');
         }
+      } else {
+        console.warn('⚠️ No combined transcript available for AI analysis');
       }
 
       const meetingData = await meetingsAPI.create({
@@ -782,6 +957,14 @@ export function Meetings() {
         recording_url: null,
         user_id: user?.id,
       }, []);
+
+      console.log('💾 ═══════════════════════════════════════════════════════');
+      console.log('💾 SAVING MEETING TO DATABASE');
+      console.log('📝 Meeting title:', generatedTitle);
+      console.log('📝 Summary:', aiSummary.substring(0, 100) + '...');
+      console.log('📝 Transcript length:', combinedTranscript.length, 'chars');
+      console.log('📝 Action items count:', extractedActions.length);
+      console.log('💾 ═══════════════════════════════════════════════════════');
 
       // Save participants to database
       if (participants.length > 0 && meetingData?.id && user) {
@@ -889,6 +1072,385 @@ export function Meetings() {
     setRecordingStep('select');
   };
 
+  // Handler for audio file upload
+  const handleAudioUpload = async () => {
+    if (!uploadedAudioFile) {
+      alert('Please select an audio file to upload.');
+      return;
+    }
+
+    try {
+      setProcessingAudioUpload(true);
+      setTranscriptionProgress('🎵 Processing uploaded audio file...');
+
+      const now = new Date();
+      const title = audioUploadTitle || `Uploaded Audio Meeting - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+
+      console.log('📤 Processing uploaded audio file...');
+      console.log('📊 File info:', {
+        name: uploadedAudioFile.name,
+        type: uploadedAudioFile.type,
+        size: `${(uploadedAudioFile.size / 1024 / 1024).toFixed(2)} MB`
+      });
+
+      // Check if file format is supported by Groq
+      const supportedFormats = ['audio/flac', 'audio/mp3', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/ogg', 'audio/opus', 'audio/wav', 'audio/webm', 'video/mp4', 'video/webm'];
+      const fileExtension = uploadedAudioFile.name.split('.').pop()?.toLowerCase();
+      const supportedExtensions = ['flac', 'mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'ogg', 'opus', 'wav', 'webm'];
+
+      let audioBlob: Blob;
+
+      // Determine the MIME type - use explicit mapping based on file extension if MIME type is unknown
+      let mimeType = uploadedAudioFile.type;
+      if (!mimeType || mimeType === 'application/octet-stream' || mimeType === '') {
+        const extensionToMime: Record<string, string> = {
+          'mp3': 'audio/mpeg',
+          'wav': 'audio/wav',
+          'm4a': 'audio/m4a',
+          'ogg': 'audio/ogg',
+          'flac': 'audio/flac',
+          'webm': 'audio/webm',
+          'opus': 'audio/opus',
+        };
+        mimeType = extensionToMime[fileExtension || ''] || 'audio/wav';
+        console.log(`📝 Detected MIME type from extension .${fileExtension}: ${mimeType}`);
+      }
+
+      // If the file format is not directly supported, try to convert it
+      if (!supportedFormats.includes(mimeType) && !supportedExtensions.includes(fileExtension || '')) {
+        console.log('⚠️ File format not directly supported, attempting conversion...');
+        setTranscriptionProgress('🔄 Converting audio format...');
+
+        try {
+          // Use the convertToAudioBlob function to convert to a supported format
+          audioBlob = await convertToAudioBlob(uploadedAudioFile);
+          console.log('✅ Audio conversion complete:', {
+            size: `${(audioBlob.size / 1024 / 1024).toFixed(2)} MB`,
+            type: audioBlob.type,
+          });
+        } catch (convErr: any) {
+          console.error('❌ Conversion failed:', convErr);
+          throw new Error('Failed to convert audio file to a supported format. Please use MP3, WAV, M4A, or WebM format.');
+        }
+      } else {
+        // File is already in a supported format - use it directly as blob with correct MIME type
+        audioBlob = new Blob([uploadedAudioFile], { type: mimeType });
+        console.log('✅ Audio file ready:', {
+          size: `${(audioBlob.size / 1024 / 1024).toFixed(2)} MB`,
+          type: audioBlob.type,
+        });
+      }
+
+      console.log('📤 Transcribing uploaded audio file...');
+      setTranscriptionProgress('🎵 Transcribing audio with Groq Whisper AI...');
+
+      let uploadedTranscript = '';
+      try {
+        uploadedTranscript = await transcribeWithGroqDirect(audioBlob, {
+          language: 'en',
+          temperature: 0,
+          model: 'whisper-large-v3-turbo'
+        });
+        console.log('✅ Transcription complete:', uploadedTranscript);
+      } catch (err: any) {
+        console.error('❌ Transcription failed:', err);
+        if (err.message.includes('file must be one of the following types')) {
+          throw new Error('Audio format not supported. Please upload MP3, WAV, M4A, OGG, FLAC, or WebM files.');
+        }
+        throw new Error('Failed to transcribe audio: ' + err.message);
+      }
+
+      if (!uploadedTranscript || uploadedTranscript.trim().length === 0) {
+        throw new Error('No speech detected in the audio file.');
+      }
+
+      // Get account holder name
+      let accountHolderName = 'You';
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('name')
+          .eq('id', user?.id)
+          .maybeSingle();
+        if (userData?.name) {
+          accountHolderName = userData.name;
+        } else {
+          accountHolderName = user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You';
+        }
+      } catch (err) {
+        accountHolderName = user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You';
+      }
+
+      // Generate AI summary and extract action items
+      let aiSummary = '';
+      let generatedTitle = title;
+      let extractedActions: any[] = [];
+      let participants: string[] = [accountHolderName];
+
+      setTranscriptionProgress('🤖 Analyzing transcript with AI...');
+      console.log('🤖 Generating AI analysis...');
+
+      try {
+        if (!audioUploadTitle || audioUploadTitle.trim().length === 0) {
+          generatedTitle = await generateMeetingTitle(uploadedTranscript);
+        }
+
+        const summaryResult = await generateMeetingSummary(uploadedTranscript, generatedTitle);
+        aiSummary = summaryResult.summary;
+
+        if (summaryResult.participants && summaryResult.participants.length > 0) {
+          summaryResult.participants.forEach(name => {
+            if (name && !participants.includes(name)) {
+              participants.push(name);
+            }
+          });
+        }
+
+        if (summaryResult.actionItems && summaryResult.actionItems.length > 0) {
+          extractedActions = summaryResult.actionItems.map(item => ({
+            title: item.title,
+            task: item.title,
+            description: item.description || '',
+            assignee: item.assignee || user?.email || 'Unassigned',
+            priority: item.priority,
+          }));
+        }
+      } catch (err: any) {
+        console.error('❌ AI processing failed:', err);
+        aiSummary = uploadedTranscript.substring(0, 200) + (uploadedTranscript.length > 200 ? '...' : '');
+      }
+
+      // Create meeting in database
+      setTranscriptionProgress('💾 Saving meeting to database...');
+      const meetingData = await meetingsAPI.create({
+        title: generatedTitle,
+        date: now.toISOString().split('T')[0],
+        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        duration: 'N/A',
+        status: 'completed',
+        summary: aiSummary || uploadedTranscript.substring(0, 200) + (uploadedTranscript.length > 200 ? '...' : ''),
+        transcript: uploadedTranscript,
+        location: 'Audio Upload',
+        recording_url: null,
+        user_id: user?.id,
+      }, []);
+
+      // Save participants
+      if (participants.length > 0 && meetingData?.id && user) {
+        try {
+          await saveParticipantsToMeeting(meetingData.id, participants, user.id);
+        } catch (err) {
+          console.error('⚠️ Failed to save participants:', err);
+        }
+      }
+
+      // Create action items
+      if (extractedActions.length > 0 && meetingData?.id && user) {
+        try {
+          const defaultDueDate = new Date();
+          defaultDueDate.setDate(defaultDueDate.getDate() + 7);
+          const dueDateStr = defaultDueDate.toISOString().split('T')[0];
+
+          for (const action of extractedActions) {
+            await actionItemsAPI.create({
+              title: action.task || action.title,
+              description: action.description || '',
+              meeting_id: meetingData.id,
+              status: 'todo',
+              priority: action.priority,
+              assignee: action.assignee || user.email || 'Unassigned',
+              due_date: dueDateStr,
+              user_id: user.id,
+            });
+          }
+        } catch (err) {
+          console.error('⚠️ Failed to create action items:', err);
+        }
+      }
+
+      // Upload audio file to storage
+      if (meetingData?.id && user) {
+        try {
+          const audioUrl = await recordingsAPI.uploadAudio(audioBlob, user.id, meetingData.id);
+          await meetingsAPI.update(meetingData.id, { recording_url: audioUrl }, user.id);
+        } catch (err) {
+          console.error('⚠️ Failed to upload audio file:', err);
+        }
+      }
+
+      console.log('✅ Meeting created from uploaded audio!');
+      await fetchMeetings();
+
+      // Reset and close modal
+      setUploadedAudioFile(null);
+      setAudioUploadTitle('');
+      setTranscriptionProgress('');
+      setShowAudioUploadModal(false);
+
+      alert('✅ Meeting created successfully from uploaded audio!');
+    } catch (error: any) {
+      console.error('❌ Error processing audio upload:', error);
+
+      let errorMessage = error.message;
+
+      // Check for API authentication errors
+      if (error.message.includes('401') || error.message.includes('Unauthorized') || error.message.includes('API key not configured')) {
+        errorMessage = `Groq API key is invalid or not configured.\n\nTo fix this:\n1. Go to Settings → API Keys\n2. Get a free API key from: https://console.groq.com/keys\n3. Paste it in the Groq API Key field and click Save\n\nError: ${error.message}`;
+      } else if (error.message.includes('file must be one of the following types')) {
+        errorMessage = `Audio format not supported.\n\nPlease upload one of these formats:\n• MP3, WAV, M4A\n• OGG, FLAC, WebM\n• MP4 (with audio track)\n\nError: ${error.message}`;
+      }
+
+      alert(`Failed to process audio file:\n\n${errorMessage}`);
+    } finally {
+      setProcessingAudioUpload(false);
+      setTranscriptionProgress('');
+    }
+  };
+
+  // Handler for transcript upload
+  const handleTranscriptUpload = async () => {
+    if (!uploadedTranscript || uploadedTranscript.trim().length === 0) {
+      alert('Please enter or paste a transcript.');
+      return;
+    }
+
+    try {
+      setProcessingTranscriptUpload(true);
+
+      const now = new Date();
+      const title = transcriptUploadTitle || `Transcript Upload - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+
+      // Get account holder name
+      let accountHolderName = 'You';
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('name')
+          .eq('id', user?.id)
+          .maybeSingle();
+        if (userData?.name) {
+          accountHolderName = userData.name;
+        } else {
+          accountHolderName = user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You';
+        }
+      } catch (err) {
+        accountHolderName = user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'You';
+      }
+
+      // Generate AI summary and extract action items
+      let aiSummary = '';
+      let generatedTitle = title;
+      let extractedActions: any[] = [];
+      let participants: string[] = [accountHolderName];
+
+      setTranscriptionProgress('🤖 Analyzing transcript with AI...');
+      console.log('🤖 Generating AI analysis...');
+
+      try {
+        if (!transcriptUploadTitle || transcriptUploadTitle.trim().length === 0) {
+          generatedTitle = await generateMeetingTitle(uploadedTranscript);
+        }
+
+        const summaryResult = await generateMeetingSummary(uploadedTranscript, generatedTitle);
+        aiSummary = summaryResult.summary;
+
+        if (summaryResult.participants && summaryResult.participants.length > 0) {
+          summaryResult.participants.forEach(name => {
+            if (name && !participants.includes(name)) {
+              participants.push(name);
+            }
+          });
+        }
+
+        if (summaryResult.actionItems && summaryResult.actionItems.length > 0) {
+          extractedActions = summaryResult.actionItems.map(item => ({
+            title: item.title,
+            task: item.title,
+            description: item.description || '',
+            assignee: item.assignee || user?.email || 'Unassigned',
+            priority: item.priority,
+          }));
+        }
+      } catch (err: any) {
+        console.error('❌ AI processing failed:', err);
+        aiSummary = uploadedTranscript.substring(0, 200) + (uploadedTranscript.length > 200 ? '...' : '');
+      }
+
+      // Create meeting in database
+      setTranscriptionProgress('💾 Saving meeting to database...');
+      const meetingData = await meetingsAPI.create({
+        title: generatedTitle,
+        date: now.toISOString().split('T')[0],
+        time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        duration: 'N/A',
+        status: 'completed',
+        summary: aiSummary || uploadedTranscript.substring(0, 200) + (uploadedTranscript.length > 200 ? '...' : ''),
+        transcript: uploadedTranscript,
+        location: 'Transcript Upload',
+        recording_url: null,
+        user_id: user?.id,
+      }, []);
+
+      // Save participants
+      if (participants.length > 0 && meetingData?.id && user) {
+        try {
+          await saveParticipantsToMeeting(meetingData.id, participants, user.id);
+        } catch (err) {
+          console.error('⚠️ Failed to save participants:', err);
+        }
+      }
+
+      // Create action items
+      if (extractedActions.length > 0 && meetingData?.id && user) {
+        try {
+          const defaultDueDate = new Date();
+          defaultDueDate.setDate(defaultDueDate.getDate() + 7);
+          const dueDateStr = defaultDueDate.toISOString().split('T')[0];
+
+          for (const action of extractedActions) {
+            await actionItemsAPI.create({
+              title: action.task || action.title,
+              description: action.description || '',
+              meeting_id: meetingData.id,
+              status: 'todo',
+              priority: action.priority,
+              assignee: action.assignee || user.email || 'Unassigned',
+              due_date: dueDateStr,
+              user_id: user.id,
+            });
+          }
+        } catch (err) {
+          console.error('⚠️ Failed to create action items:', err);
+        }
+      }
+
+      console.log('✅ Meeting created from uploaded transcript!');
+      await fetchMeetings();
+
+      // Reset and close modal
+      setUploadedTranscript('');
+      setTranscriptUploadTitle('');
+      setTranscriptionProgress('');
+      setShowTranscriptUploadModal(false);
+
+      alert('✅ Meeting created successfully from transcript!');
+    } catch (error: any) {
+      console.error('❌ Error processing transcript upload:', error);
+
+      let errorMessage = error.message;
+
+      // Check for API authentication errors
+      if (error.message.includes('401') || error.message.includes('Unauthorized') || error.message.includes('API key not configured')) {
+        errorMessage = `Groq API key is invalid or not configured.\n\nTo fix this:\n1. Go to Settings → API Keys\n2. Get a free API key from: https://console.groq.com/keys\n3. Paste it in the Groq API Key field and click Save\n\nError: ${error.message}`;
+      }
+
+      alert(`Failed to process transcript:\n\n${errorMessage}`);
+    } finally {
+      setProcessingTranscriptUpload(false);
+      setTranscriptionProgress('');
+    }
+  };
+
   return (
     <div className={compactMode ? "space-y-4" : "space-y-6"}>
       {/* Header */}
@@ -905,24 +1467,35 @@ export function Meetings() {
             Manage and review your meeting history
           </p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowRecordingModal(true)}
-          className={`${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} bg-gradient-to-r from-red-500 to-pink-600 text-white ${compactMode ? 'rounded-lg' : 'rounded-xl'} shadow-md hover:shadow-lg transition-all flex items-center gap-2`}
-        >
-          <Mic className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
-          Record Audio
-        </motion.button>
-      </motion.div>
-
-      {/* Recording Diagnostic Tool */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <RecordingDiagnostic />
+        <div className="flex gap-2">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowRecordingModal(true)}
+            className={`${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} bg-gradient-to-r from-red-500 to-pink-600 text-white ${compactMode ? 'rounded-lg' : 'rounded-xl'} shadow-md hover:shadow-lg transition-all flex items-center gap-2`}
+          >
+            <Mic className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
+            Record Audio
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowAudioUploadModal(true)}
+            className={`${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} bg-gradient-to-r from-blue-500 to-cyan-600 text-white ${compactMode ? 'rounded-lg' : 'rounded-xl'} shadow-md hover:shadow-lg transition-all flex items-center gap-2`}
+          >
+            <Download className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
+            Analyze Audio
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowTranscriptUploadModal(true)}
+            className={`${compactMode ? 'px-3 py-1.5 text-sm' : 'px-4 py-2'} bg-gradient-to-r from-purple-500 to-indigo-600 text-white ${compactMode ? 'rounded-lg' : 'rounded-xl'} shadow-md hover:shadow-lg transition-all flex items-center gap-2`}
+          >
+            <Edit className={`${compactMode ? 'w-3 h-3' : 'w-4 h-4'}`} />
+            Analyze Transcript
+          </motion.button>
+        </div>
       </motion.div>
 
       {/* Stats Bar */}
@@ -1091,7 +1664,12 @@ export function Meetings() {
                       </h3>
                       {/* Status Pill */}
                       {meeting.status === 'completed' && (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">Completed</span>
+                        <>
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">Completed</span>
+                          {index === 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">New</span>
+                          )}
+                        </>
                       )}
                       {meeting.status === 'in-progress' && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 flex items-center gap-1">
@@ -1802,6 +2380,283 @@ export function Meetings() {
                   </p>
                 </motion.div>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>,
+      document.body
+      )}
+
+      {/* Audio Upload Modal */}
+      {createPortal(
+      <AnimatePresence>
+        {showAudioUploadModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => !processingAudioUpload && setShowAudioUploadModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`glass-card ${compactMode ? 'rounded-xl p-6' : 'rounded-2xl p-8'} max-w-lg w-full shadow-2xl`}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`${compactMode ? 'text-xl' : 'text-2xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  Analyze Audio File
+                </h2>
+                <button
+                  onClick={() => !processingAudioUpload && setShowAudioUploadModal(false)}
+                  disabled={processingAudioUpload}
+                  className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-gray-100'} disabled:opacity-50`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Meeting Title (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={audioUploadTitle}
+                    onChange={(e) => setAudioUploadTitle(e.target.value)}
+                    placeholder="Leave empty for AI-generated title"
+                    disabled={processingAudioUpload}
+                    className={`w-full px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/5 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} border ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'} focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Audio File
+                  </label>
+                  <div className={`border-2 border-dashed ${theme === 'dark' ? 'border-white/20' : 'border-gray-300'} rounded-lg p-6 text-center ${processingAudioUpload ? 'opacity-50' : ''}`}>
+                    <Upload className={`w-12 h-12 mx-auto mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                    <input
+                      type="file"
+                      accept=".mp3,.wav,.m4a,.ogg,.flac,.webm,.mp4,.mpeg,.opus,audio/mp3,audio/mpeg,audio/wav,audio/x-m4a,audio/ogg,audio/flac,audio/webm,audio/mp4,audio/opus"
+                      onChange={(e) => setUploadedAudioFile(e.target.files?.[0] || null)}
+                      disabled={processingAudioUpload}
+                      className="hidden"
+                      id="audio-file-upload"
+                    />
+                    <label
+                      htmlFor="audio-file-upload"
+                      className={`cursor-pointer ${processingAudioUpload ? 'pointer-events-none' : ''}`}
+                    >
+                      <span className={`text-sm ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'} hover:underline`}>
+                        Click to upload
+                      </span>
+                      <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}> or drag and drop</span>
+                    </label>
+                    <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                      Supported: MP3, WAV, M4A, OGG, FLAC, WebM, MP4
+                    </p>
+                    {uploadedAudioFile && (
+                      <p className={`text-sm mt-2 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
+                        ✓ {uploadedAudioFile.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {processingAudioUpload && transcriptionProgress && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-blue-900/20 border border-blue-800/30' : 'bg-blue-50 border border-blue-200'} flex items-center gap-3`}
+                  >
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {transcriptionProgress}
+                    </p>
+                  </motion.div>
+                )}
+
+                <div className="flex gap-3 pt-4">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleAudioUpload}
+                    disabled={!uploadedAudioFile || processingAudioUpload}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {processingAudioUpload ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Processing...
+                      </span>
+                    ) : (
+                      'Analyze Audio'
+                    )}
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setShowAudioUploadModal(false);
+                      setUploadedAudioFile(null);
+                      setAudioUploadTitle('');
+                    }}
+                    disabled={processingAudioUpload}
+                    className={`px-4 py-3 ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} text-gray-700 dark:text-gray-200 rounded-xl font-semibold transition-colors disabled:opacity-50`}
+                  >
+                    Cancel
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>,
+      document.body
+      )}
+
+      {/* Transcript Upload Modal */}
+      {createPortal(
+      <AnimatePresence>
+        {showTranscriptUploadModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => !processingTranscriptUpload && setShowTranscriptUploadModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`glass-card ${compactMode ? 'rounded-xl p-6' : 'rounded-2xl p-8'} max-w-2xl w-full shadow-2xl`}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`${compactMode ? 'text-xl' : 'text-2xl'} font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                  Analyze Transcript
+                </h2>
+                <button
+                  onClick={() => !processingTranscriptUpload && setShowTranscriptUploadModal(false)}
+                  disabled={processingTranscriptUpload}
+                  className={`p-2 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-white/10' : 'hover:bg-gray-100'} disabled:opacity-50`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Meeting Title (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={transcriptUploadTitle}
+                    onChange={(e) => setTranscriptUploadTitle(e.target.value)}
+                    placeholder="Leave empty for AI-generated title"
+                    disabled={processingTranscriptUpload}
+                    className={`w-full px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-white/5 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} border ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'} focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Transcript Text
+                  </label>
+                  <div className="relative">
+                    <textarea
+                      value={uploadedTranscript}
+                      onChange={(e) => setUploadedTranscript(e.target.value)}
+                      placeholder="Paste your meeting transcript here or upload a text file..."
+                      disabled={processingTranscriptUpload}
+                      rows={12}
+                      className={`w-full px-4 py-3 rounded-lg ${theme === 'dark' ? 'bg-white/5 text-white placeholder-gray-400' : 'bg-gray-50 text-gray-900 placeholder-gray-500'} border ${theme === 'dark' ? 'border-white/10' : 'border-gray-200'} focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 resize-none`}
+                    />
+                    <div className="absolute top-2 right-2">
+                      <input
+                        type="file"
+                        accept=".txt,.doc,.docx,text/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              setUploadedTranscript(event.target?.result as string);
+                            };
+                            reader.readAsText(file);
+                          }
+                        }}
+                        disabled={processingTranscriptUpload}
+                        className="hidden"
+                        id="transcript-file-upload"
+                      />
+                      <label
+                        htmlFor="transcript-file-upload"
+                        className={`cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${theme === 'dark' ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-200 hover:bg-gray-300'} text-sm transition-colors ${processingTranscriptUpload ? 'pointer-events-none opacity-50' : ''}`}
+                      >
+                        <FileText className="w-4 h-4" />
+                        Upload File
+                      </label>
+                    </div>
+                  </div>
+                  {uploadedTranscript && (
+                    <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {uploadedTranscript.length} characters
+                    </p>
+                  )}
+                </div>
+
+                {processingTranscriptUpload && transcriptionProgress && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-purple-900/20 border border-purple-800/30' : 'bg-purple-50 border border-purple-200'} flex items-center gap-3`}
+                  >
+                    <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+                    <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                      {transcriptionProgress}
+                    </p>
+                  </motion.div>
+                )}
+
+                <div className="flex gap-3 pt-4">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleTranscriptUpload}
+                    disabled={!uploadedTranscript.trim() || processingTranscriptUpload}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {processingTranscriptUpload ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Processing...
+                      </span>
+                    ) : (
+                      'Analyze Transcript'
+                    )}
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setShowTranscriptUploadModal(false);
+                      setUploadedTranscript('');
+                      setTranscriptUploadTitle('');
+                    }}
+                    disabled={processingTranscriptUpload}
+                    className={`px-4 py-3 ${theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} text-gray-700 dark:text-gray-200 rounded-xl font-semibold transition-colors disabled:opacity-50`}
+                  >
+                    Cancel
+                  </motion.button>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
