@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { notificationsAPI } from "../services/apiWrapper";
+import { supabase } from "../../lib/supabase";
 import {
   CheckCircle2,
   Calendar as CalendarIcon,
@@ -27,6 +28,67 @@ export function Notifications() {
   useEffect(() => {
     if (user) {
       fetchNotifications();
+
+      // Subscribe to real-time notifications
+      const channel = supabase
+        .channel('notifications')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('🔔 New notification received:', payload.new);
+
+            const iconMap: any = {
+              action: CheckCircle2,
+              meeting: CalendarIcon,
+              mention: MessageSquare,
+              alert: AlertCircle,
+              info: Info,
+            };
+
+            const colorMap: any = {
+              action: 'green',
+              meeting: 'blue',
+              mention: 'purple',
+              alert: 'red',
+              info: 'gray',
+            };
+
+            const newNotification = {
+              ...payload.new,
+              icon: iconMap[payload.new.type] || Info,
+              color: colorMap[payload.new.type] || 'gray',
+              time: new Date(payload.new.created_at).toLocaleString(),
+              isRead: payload.new.is_read,
+            };
+
+            // Add new notification to the top of the list
+            setNotifications((prev) => [newNotification, ...prev]);
+
+            // Show browser notification if supported
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(payload.new.title, {
+                body: payload.new.message,
+                icon: '/favicon.ico',
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      // Request notification permission
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 

@@ -19,7 +19,8 @@ import { useState, useEffect } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { useLiveMeeting } from "../context/LiveMeetingContext";
-import { userAPI } from "../services/apiWrapper";
+import { userAPI, notificationsAPI } from "../services/apiWrapper";
+import { supabase } from "../../lib/supabase";
 
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
@@ -37,6 +38,7 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const { liveMeeting, elapsedSeconds, showPanel, setShowPanel } = useLiveMeeting();
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -63,6 +65,45 @@ export function DashboardLayout() {
     };
 
     fetchUserProfile();
+  }, [user]);
+
+  // Fetch unread notification count
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      if (!user) return;
+      try {
+        const notifications = await notificationsAPI.getAll(user.id);
+        const unread = notifications.filter((n: any) => !n.is_read).length;
+        setUnreadCount(unread);
+      } catch (error) {
+        console.error('Error fetching unread count:', error);
+      }
+    };
+
+    if (user) {
+      fetchUnreadCount();
+
+      // Subscribe to real-time notifications
+      const channel = supabase
+        .channel('notification_count')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            fetchUnreadCount();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [user]);
 
   const isActive = (href: string) => {
@@ -222,7 +263,15 @@ export function DashboardLayout() {
                 }`}
               >
                 <Bell className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`} />
-                <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-yellow-400 rounded-full" />
+                {unreadCount > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center"
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </motion.span>
+                )}
               </motion.button>
             </Link>
 
