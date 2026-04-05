@@ -613,7 +613,9 @@ export function Meetings() {
         console.log('🎙️ Processing microphone audio...');
 
         // For microphone, we have live transcription from Web Speech API
-        micTranscript = transcriptRef.current?.trim() || transcript?.trim() || '';
+        // Use the current recording session's transcript
+        micTranscript = transcriptRef.current?.trim() || '';
+        console.log('🎙️ Live transcript from Web Speech API:', micTranscript.length, 'chars');
 
         // If Web Speech API didn't capture anything, try Whisper
         if (!micTranscript || micTranscript.length === 0) {
@@ -757,14 +759,27 @@ export function Meetings() {
             console.log('✅ Generated title:', generatedTitle);
           }
 
-          setTranscriptionProgress('🤖 Generating summary...');
+          setTranscriptionProgress('🤖 Analyzing transcript and extracting action items...');
           console.log('🤖 Generating meeting summary with AI...');
 
           const summaryResult = await generateMeetingSummary(combinedTranscript, generatedTitle);
           aiSummary = summaryResult.summary;
 
+          // Use AI-extracted action items from the full combined transcript
+          if (summaryResult.actionItems && summaryResult.actionItems.length > 0) {
+            extractedActions = summaryResult.actionItems.map(item => ({
+              title: item.title,
+              task: item.title,
+              description: item.description || '',
+              assignee: item.assignee || user?.email || 'Unassigned',
+              priority: item.priority,
+            }));
+            console.log('✅ Extracted action items from AI analysis:', extractedActions.length);
+          }
+
           console.log('✅ AI Summary generated:', {
             summary: aiSummary.substring(0, 100),
+            actionItemsCount: extractedActions.length,
           });
 
           setTranscriptionProgress('');
@@ -846,7 +861,7 @@ export function Meetings() {
       }
 
       // Trigger AI analysis if we have a transcript
-      if (finalTranscript && meetingData?.id && user) {
+      if (combinedTranscript && meetingData?.id && user) {
         try {
           console.log('🤖 Triggering AI analysis...');
           await aiProcessingService.triggerAnalysis(meetingData.id, user.id);
