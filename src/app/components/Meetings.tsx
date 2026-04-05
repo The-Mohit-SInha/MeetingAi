@@ -79,6 +79,9 @@ export function Meetings() {
   const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
   const [groqConfigured, setGroqConfigured] = useState(false);
   const [displayCaptureAllowed, setDisplayCaptureAllowed] = useState(true);
+  const [deletingMeetingId, setDeletingMeetingId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [meetingToDelete, setMeetingToDelete] = useState<any>(null);
 
   // Ref to accumulate transcript in real-time (avoids stale closure issues)
   const transcriptRef = useRef('');
@@ -210,6 +213,29 @@ export function Meetings() {
       setStats({ totalMeetings: 0, thisWeek: 0, totalHours: 0, participants: 0 });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteMeeting = async (meeting: any, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMeetingToDelete(meeting);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteMeeting = async () => {
+    if (!meetingToDelete || !user) return;
+
+    try {
+      setDeletingMeetingId(meetingToDelete.id);
+      await meetingsAPI.delete(meetingToDelete.id, user.id);
+      await fetchMeetings();
+      setShowDeleteConfirm(false);
+      setMeetingToDelete(null);
+    } catch (error) {
+      console.error("Error deleting meeting:", error);
+    } finally {
+      setDeletingMeetingId(null);
     }
   };
 
@@ -977,9 +1003,10 @@ export function Meetings() {
               Create Meeting
             </button>
           </div>
-        ) :
+        ) : (
           meetings.map((meeting, index) => (
-          <Link key={meeting.id} to={`/meetings/${meeting.id}`}>
+          <div key={meeting.id} className="relative">
+            <Link to={`/meetings/${meeting.id}`}>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1100,8 +1127,31 @@ export function Meetings() {
               </div>
             </motion.div>
           </Link>
+
+          {/* Delete Button */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={(e) => handleDeleteMeeting(meeting, e)}
+            disabled={deletingMeetingId === meeting.id}
+            className={`absolute top-4 right-4 p-2 rounded-lg transition-colors ${
+              deletingMeetingId === meeting.id
+                ? 'bg-gray-400 cursor-not-allowed'
+                : theme === 'dark'
+                ? 'bg-red-900/50 hover:bg-red-900 text-red-300'
+                : 'bg-red-100 hover:bg-red-200 text-red-700'
+            }`}
+            title="Delete meeting"
+          >
+            {deletingMeetingId === meeting.id ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+          </motion.button>
+          </div>
         ))
-        }
+        )}
       </motion.div>
 
       {/* New Meeting Modal */}
@@ -1257,6 +1307,78 @@ export function Meetings() {
                   className={`${compactMode ? 'px-4 py-1.5 text-sm' : 'px-5 py-2'} bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   Create Meeting
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>,
+      document.body
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {createPortal(
+      <AnimatePresence>
+        {showDeleteConfirm && meetingToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-2xl p-6 w-full max-w-md shadow-2xl`}
+            >
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-full bg-red-100 dark:bg-red-900/30">
+                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <h2 className={`text-xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                    Delete Meeting?
+                  </h2>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                    Are you sure you want to delete "<span className="font-semibold">{meetingToDelete.title}</span>"? This action cannot be undone and will also delete all associated action items.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className={`px-4 py-2 rounded-lg font-semibold ${
+                    theme === 'dark'
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={confirmDeleteMeeting}
+                  disabled={deletingMeetingId !== null}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {deletingMeetingId ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete Meeting
+                    </>
+                  )}
                 </motion.button>
               </div>
             </motion.div>
