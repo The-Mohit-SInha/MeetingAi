@@ -40,12 +40,18 @@ export function Analytics() {
       }, 5000);
 
       const monthTrends = await analyticsAPI.getMeetingTrends(user.id);
-      setMeetingsByMonth(monthTrends.map((m: any, i: number) => ({
-        month: new Date(m.month).toLocaleDateString('en-US', { month: 'short' }),
-        meetings: m.total_meetings,
-        actions: 0,
-        id: `month-${i}`,
-      })));
+      setMeetingsByMonth(monthTrends.map((m: any, i: number) => {
+        // Handle both date strings and month strings (YYYY-MM format)
+        const monthStr = m.month.includes('-')
+          ? new Date(m.month + '-01').toLocaleDateString('en-US', { month: 'short' })
+          : m.month;
+        return {
+          month: monthStr,
+          meetings: m.total_meetings,
+          actions: 0,
+          id: `month-${i}`,
+        };
+      }));
 
       const statusBreakdown = await analyticsAPI.getActionsByStatus(user.id);
       setActionsByStatus([
@@ -73,9 +79,10 @@ export function Analytics() {
       setStats({
         totalMeetings: monthTrends.reduce((sum: number, m: any) => sum + m.total_meetings, 0),
         totalActions: (statusBreakdown.completed || 0) + (statusBreakdown.in_progress || 0) + (statusBreakdown.todo || 0),
-        completionRate: statusBreakdown.completed
-          ? Math.round((statusBreakdown.completed / ((statusBreakdown.completed || 0) + (statusBreakdown.in_progress || 0) + (statusBreakdown.todo || 0))) * 100)
-          : 0,
+        completionRate: (() => {
+          const total = (statusBreakdown.completed || 0) + (statusBreakdown.in_progress || 0) + (statusBreakdown.todo || 0);
+          return total > 0 ? Math.round((statusBreakdown.completed / total) * 100) : 0;
+        })(),
         totalParticipants: engagement.length,
       });
 

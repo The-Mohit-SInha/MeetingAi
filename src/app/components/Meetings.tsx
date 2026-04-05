@@ -33,7 +33,7 @@ import { supabase } from "../../lib/supabase";
 import { transcribeAudioBlob } from "../services/localTranscriptionService";
 import { transcribeWithGroq, isGroqConfigured } from "../services/groqTranscriptionService";
 import { transcribeWithGroqDirect, convertToAudioBlob } from "../services/groqDirectService";
-import { generateMeetingSummary } from "../services/groqLLMService";
+import { generateMeetingSummary, generateMeetingTitle } from "../services/groqLLMService";
 import { RecordingDiagnostic } from "./RecordingDiagnostic";
 import { AudioLevelIndicator } from "./AudioLevelIndicator";
 
@@ -655,13 +655,22 @@ export function Meetings() {
       // Generate AI summary and extract action items if we have a transcript
       let aiSummary = '';
       let extractedActions: any[] = [];
+      let generatedTitle = title;
 
       if (finalTranscript && finalTranscript.trim().length > 0) {
         try {
+          // Generate meeting title from transcript if using default title
+          if (!recordingTitle || recordingTitle.trim().length === 0) {
+            setTranscriptionProgress('🤖 Generating meeting title...');
+            console.log('📝 Generating AI-powered meeting title...');
+            generatedTitle = await generateMeetingTitle(finalTranscript);
+            console.log('✅ Generated title:', generatedTitle);
+          }
+
           setTranscriptionProgress('🤖 Generating summary and extracting action items...');
           console.log('🤖 Generating meeting summary with AI...');
 
-          const summaryResult = await generateMeetingSummary(finalTranscript, title);
+          const summaryResult = await generateMeetingSummary(finalTranscript, generatedTitle);
 
           aiSummary = summaryResult.summary;
           extractedActions = summaryResult.actionItems;
@@ -681,7 +690,7 @@ export function Meetings() {
       }
 
       const meetingData = await meetingsAPI.create({
-        title,
+        title: generatedTitle,
         date: now.toISOString().split('T')[0],
         time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
         duration: `${Math.ceil(recordingTime / 60)} min`,
@@ -700,6 +709,11 @@ export function Meetings() {
         try {
           console.log(`📝 Creating ${extractedActions.length} extracted action items...`);
 
+          // Default due date: 7 days from now
+          const defaultDueDate = new Date();
+          defaultDueDate.setDate(defaultDueDate.getDate() + 7);
+          const dueDateStr = defaultDueDate.toISOString().split('T')[0];
+
           for (const action of extractedActions) {
             await actionItemsAPI.create({
               title: action.title,
@@ -707,8 +721,8 @@ export function Meetings() {
               meeting_id: meetingData.id,
               status: 'todo',
               priority: action.priority,
-              assigned_to: action.assignee || user.email || 'Unassigned',
-              due_date: null,
+              assignee: action.assignee || user.email || 'Unassigned',
+              due_date: dueDateStr,
               user_id: user.id,
             });
           }

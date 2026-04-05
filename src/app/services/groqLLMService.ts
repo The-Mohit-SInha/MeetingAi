@@ -197,3 +197,62 @@ export async function generateQuickSummary(transcript: string): Promise<string> 
     return transcript.substring(0, 200) + (transcript.length > 200 ? '...' : '');
   }
 }
+
+/**
+ * Generate a suitable meeting title from transcript
+ */
+export async function generateMeetingTitle(transcript: string): Promise<string> {
+  try {
+    if (!transcript || transcript.trim().length === 0) {
+      return 'Untitled Meeting';
+    }
+
+    // Use only first 1000 characters for title generation (faster)
+    const shortTranscript = transcript.substring(0, 1000);
+
+    const prompt = `Based on this meeting transcript excerpt, generate a short, descriptive meeting title (max 6 words). The title should capture the main topic or purpose of the meeting. Respond with ONLY the title, nothing else.
+
+Transcript excerpt:
+${shortTranscript}`;
+
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant', // Fastest model
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.5,
+        max_tokens: 50,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Groq API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    let title = result.choices?.[0]?.message?.content?.trim() || 'Meeting Discussion';
+
+    // Clean up the title (remove quotes, extra punctuation)
+    title = title.replace(/^["']|["']$/g, '').replace(/\.$/, '').trim();
+
+    // Limit to reasonable length
+    if (title.length > 60) {
+      title = title.substring(0, 57) + '...';
+    }
+
+    console.log('📝 Generated meeting title:', title);
+    return title;
+  } catch (error) {
+    console.error('❌ Title generation failed:', error);
+    return 'Meeting Discussion';
+  }
+}

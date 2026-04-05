@@ -47,6 +47,8 @@ export function MeetingDetail() {
   const [aiJobs, setAiJobs] = useState<any[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [extractingTasks, setExtractingTasks] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
 
   const handleAiAnalyze = async () => {
     if (!user || !id || !meeting?.transcript) return;
@@ -64,6 +66,11 @@ export function MeetingDetail() {
         summary: summaryResult.summary
       }, user.id);
 
+      // Default due date: 7 days from now
+      const defaultDueDate = new Date();
+      defaultDueDate.setDate(defaultDueDate.getDate() + 7);
+      const dueDateStr = defaultDueDate.toISOString().split('T')[0];
+
       // Create new action items extracted from transcript
       for (const action of summaryResult.actionItems) {
         await actionItemsAPI.create({
@@ -72,8 +79,8 @@ export function MeetingDetail() {
           meeting_id: id,
           status: 'todo',
           priority: action.priority,
-          assigned_to: action.assignee || user.email || 'Unassigned',
-          due_date: null,
+          assignee: action.assignee || user.email || 'Unassigned',
+          due_date: dueDateStr,
           user_id: user.id,
         });
       }
@@ -92,6 +99,122 @@ export function MeetingDetail() {
   };
 
   const isProcessing = meeting?.ai_processing_status && !['none', 'complete', 'failed'].includes(meeting.ai_processing_status);
+
+  const handleExport = () => {
+    if (!meeting) return;
+
+    // Create formatted content
+    let content = `# ${meeting.title}\n\n`;
+    content += `**Date:** ${formatDate(meeting.date)}\n`;
+    content += `**Time:** ${formatTime(meeting.time)} • ${meeting.duration}\n`;
+    content += `**Status:** ${meeting.status}\n`;
+    if (meeting.location) content += `**Location:** ${meeting.location}\n`;
+    content += `\n---\n\n`;
+
+    // Add participants
+    if (realParticipants.length > 0) {
+      content += `## Participants (${realParticipants.length})\n\n`;
+      realParticipants.forEach((p: any) => {
+        content += `- ${p.participant_name}`;
+        if (p.role) content += ` (${p.role})`;
+        if (p.participant_email) content += ` - ${p.participant_email}`;
+        content += `\n`;
+      });
+      content += `\n`;
+    }
+
+    // Add summary
+    if (meeting.summary) {
+      content += `## Summary\n\n${meeting.summary}\n\n`;
+    }
+
+    // Add key decisions
+    if (meeting.key_decisions && meeting.key_decisions.length > 0) {
+      content += `## Key Decisions\n\n`;
+      meeting.key_decisions.forEach((decision: string, i: number) => {
+        content += `${i + 1}. ${decision}\n`;
+      });
+      content += `\n`;
+    }
+
+    // Add highlights
+    if (meeting.meeting_highlights && meeting.meeting_highlights.length > 0) {
+      content += `## Highlights\n\n`;
+      meeting.meeting_highlights.forEach((h: any) => {
+        content += `- [${h.timestamp}] ${h.text}\n`;
+      });
+      content += `\n`;
+    }
+
+    // Add action items
+    if (actionItems.length > 0) {
+      content += `## Action Items (${actionItems.length})\n\n`;
+      actionItems.forEach((action: any) => {
+        const checkbox = action.status === 'completed' ? '[x]' : '[ ]';
+        content += `${checkbox} **${action.title}**\n`;
+        if (action.description) content += `   ${action.description}\n`;
+        content += `   Assigned to: ${action.assignee} | Priority: ${action.priority}`;
+        if (action.due_date) content += ` | Due: ${formatDate(action.due_date)}`;
+        content += `\n\n`;
+      });
+    }
+
+    // Add transcript
+    if (meeting.transcript) {
+      content += `## Transcript\n\n${meeting.transcript}\n`;
+    }
+
+    // Create and download file
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${meeting.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${meeting.date}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExtractTasks = async () => {
+    if (!user || !id || !meeting?.transcript) return;
+    setExtractingTasks(true);
+    setExtractError(null);
+    try {
+      // Generate summary to extract action items
+      const summaryResult = await generateMeetingSummary(
+        meeting.transcript,
+        meeting.title
+      );
+
+      // Default due date: 7 days from now
+      const defaultDueDate = new Date();
+      defaultDueDate.setDate(defaultDueDate.getDate() + 7);
+      const dueDateStr = defaultDueDate.toISOString().split('T')[0];
+
+      // Create new action items extracted from transcript
+      for (const action of summaryResult.actionItems) {
+        await actionItemsAPI.create({
+          title: action.title,
+          description: action.description || '',
+          meeting_id: id,
+          status: 'todo',
+          priority: action.priority,
+          assignee: action.assignee || user.email || 'Unassigned',
+          due_date: dueDateStr,
+          user_id: user.id,
+        });
+      }
+
+      // Reload action items to show updates
+      const updatedActions = await actionItemsAPI.getByMeeting(id, user.id);
+      setActionItems(updatedActions);
+    } catch (err: any) {
+      setExtractError(err.message || 'An unexpected error occurred');
+    } finally {
+      setExtractingTasks(false);
+    }
+  };
 
   useEffect(() => {
     if (!user || !id) return;
@@ -292,6 +415,7 @@ export function MeetingDetail() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className={`flex items-center gap-2 px-5 py-3 glass rounded-xl hover:bg-white transition-all ${theme === 'dark' ? 'text-gray-200' : ''}`}
+              onClick={handleExport}
             >
               <Download className="w-4 h-4" />
               Export
@@ -538,6 +662,41 @@ export function MeetingDetail() {
                     exit={{ opacity: 0, y: -10 }}
                     className="space-y-3"
                   >
+                    {meeting.transcript && (
+                      <div className="mb-4">
+                        <motion.button
+                          onClick={handleExtractTasks}
+                          disabled={extractingTasks}
+                          whileHover={!extractingTasks ? { scale: 1.02 } : {}}
+                          whileTap={!extractingTasks ? { scale: 0.98 } : {}}
+                          className={`w-full flex items-center justify-center gap-3 px-5 py-3 rounded-xl font-semibold text-white transition-all shadow-lg ${
+                            extractingTasks
+                              ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed shadow-none'
+                              : 'bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 hover:shadow-blue-500/25 hover:shadow-xl'
+                          }`}
+                        >
+                          {extractingTasks ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              Analyzing transcript for tasks...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-5 h-5" />
+                              Extract Tasks from Transcript with AI
+                            </>
+                          )}
+                        </motion.button>
+                        {!extractingTasks && (
+                          <p className={`text-xs text-center mt-2 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                            AI will analyze the transcript and identify procedures, requests, and tasks
+                          </p>
+                        )}
+                        {extractError && (
+                          <p className="text-xs text-red-500 font-medium text-center mt-2">{extractError}</p>
+                        )}
+                      </div>
+                    )}
                     {actionItems.length > 0 ? (
                       actionItems.map((action, idx) => (
                         <motion.div
