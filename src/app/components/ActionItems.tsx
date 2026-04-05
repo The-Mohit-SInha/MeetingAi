@@ -31,7 +31,7 @@ export function ActionItems() {
   const [actionItems, setActionItems] = useState<any[]>([]);
   const [editingAction, setEditingAction] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
-  const [participants, setParticipants] = useState<string[]>([]);
+  const [participants, setParticipants] = useState<any[]>([]);
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,19 +48,38 @@ export function ActionItems() {
       setLoading(true);
 
       const data = await actionItemsAPI.getAll(user.id);
-      setActionItems(data.map((item: any) => ({
-        ...item,
-        task: item.title,
-        assignee: {
-          name: item.assignee,
-          email: item.assignee,
-          avatar: item.assignee.split(' ').map((n: string) => n[0]).join(''),
-          color: `bg-${['blue', 'green', 'purple', 'orange', 'pink'][Math.floor(Math.random() * 5)]}-500`,
-        },
-        meeting: null,
-        meetingId: item.meeting_id,
-        dueDate: item.due_date,
-      })));
+
+      // Fetch participants to get email addresses
+      const participantsData = await participantsAPI.getAll(user.id);
+      const participantsMap = new Map();
+      participantsData.forEach((p: any) => {
+        const name = p.participant_name || p.name;
+        if (name && !participantsMap.has(name)) {
+          participantsMap.set(name, {
+            name: name,
+            email: p.participant_email || p.email || `${name.toLowerCase().replace(/\s+/g, '.')}@company.com`,
+          });
+        }
+      });
+
+      setActionItems(data.map((item: any) => {
+        const assigneeName = item.assignee;
+        const participantInfo = participantsMap.get(assigneeName);
+
+        return {
+          ...item,
+          task: item.title,
+          assignee: {
+            name: assigneeName,
+            email: participantInfo?.email || `${assigneeName.toLowerCase().replace(/\s+/g, '.')}@company.com`,
+            avatar: assigneeName.split(' ').map((n: string) => n[0]).join(''),
+            color: `bg-${['blue', 'green', 'purple', 'orange', 'pink'][Math.floor(Math.random() * 5)]}-500`,
+          },
+          meeting: null,
+          meetingId: item.meeting_id,
+          dueDate: item.due_date,
+        };
+      }));
     } catch (error) {
       console.error("Error fetching action items:", error);
       setActionItems([]);
@@ -73,8 +92,7 @@ export function ActionItems() {
     if (!user) return;
     try {
       const data = await participantsAPI.getAll(user.id);
-      const uniqueNames = Array.from(new Set(data.map((p: any) => p.participant_name || p.name).filter(Boolean)));
-      setParticipants(uniqueNames);
+      setParticipants(data);
     } catch (error) {
       console.error("Error fetching participants:", error);
       setParticipants([]);
@@ -444,11 +462,14 @@ export function ActionItems() {
                         {participants.length > 0 ? (
                           <>
                             <option value="">Select participant...</option>
-                            {participants.map((participant) => (
-                              <option key={participant} value={participant}>
-                                {participant}
-                              </option>
-                            ))}
+                            {participants.map((participant) => {
+                              const name = participant.participant_name || participant.name;
+                              return (
+                                <option key={name} value={name}>
+                                  {name}
+                                </option>
+                              );
+                            })}
                             <option value="__custom__">Custom (type below)</option>
                           </>
                         ) : (

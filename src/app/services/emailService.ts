@@ -82,10 +82,11 @@ export async function sendActionItemEmail(action: {
     // Format the email content
     const emailData = formatActionItemEmail(action);
 
-    console.log('📧 Sending action item email:', {
+    console.log('📧 Attempting to send email with data:', {
+      serviceId: EMAILJS_SERVICE_ID,
+      templateId: EMAILJS_TEMPLATE_ID,
       to: emailData.to_email,
-      subject: `Action Item: ${emailData.action_title}`,
-      preview: emailData.action_details.substring(0, 100) + '...',
+      data: emailData,
     });
 
     // PRODUCTION IMPLEMENTATION - Send real emails
@@ -95,6 +96,8 @@ export async function sendActionItemEmail(action: {
       emailData
     );
 
+    console.log('📧 EmailJS Response:', response);
+
     if (response.status === 200) {
       console.log('✅ Email sent successfully to', emailData.to_email);
       return {
@@ -102,13 +105,28 @@ export async function sendActionItemEmail(action: {
         message: `Email sent successfully to ${emailData.to_email}`,
       };
     } else {
-      throw new Error(`EmailJS returned status ${response.status}`);
+      throw new Error(`EmailJS returned status ${response.status}: ${response.text}`);
     }
   } catch (error: any) {
-    console.error('❌ Failed to send email:', error);
+    console.error('❌ Failed to send email - Full error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      text: error.text,
+      status: error.status,
+      name: error.name,
+      stack: error.stack,
+    });
+
+    let errorMessage = 'Unknown error';
+    if (error.text) {
+      errorMessage = error.text;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
     return {
       success: false,
-      message: `Failed to send email: ${error.message || 'Unknown error'}`,
+      message: `Failed to send email: ${errorMessage}`,
     };
   }
 }
