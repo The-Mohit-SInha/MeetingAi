@@ -105,6 +105,8 @@ export interface Database {
           title: string;
           description: string | null;
           assignee: string;
+          assignee_user_id: string | null;
+          assigned_by_user_id: string | null;
           due_date: string;
           priority: 'high' | 'medium' | 'low';
           status: 'completed' | 'in_progress' | 'todo';
@@ -153,6 +155,54 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['user_settings']['Row'], 'updated_at'>;
         Update: Partial<Database['public']['Tables']['user_settings']['Insert']>;
+      };
+      groups: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          owner_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['groups']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['groups']['Insert']>;
+      };
+      group_members: {
+        Row: {
+          id: string;
+          group_id: string;
+          user_id: string;
+          role: string | null;
+          hierarchy_level: number;
+          joined_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['group_members']['Row'], 'id' | 'joined_at'>;
+        Update: Partial<Database['public']['Tables']['group_members']['Insert']>;
+      };
+      meeting_groups: {
+        Row: {
+          id: string;
+          meeting_id: string;
+          group_id: string;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['meeting_groups']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['meeting_groups']['Insert']>;
+      };
+      meeting_attendance: {
+        Row: {
+          id: string;
+          meeting_id: string;
+          user_id: string;
+          participant_name: string;
+          attended: boolean;
+          joined_at: string | null;
+          left_at: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['meeting_attendance']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['meeting_attendance']['Insert']>;
       };
     };
   };

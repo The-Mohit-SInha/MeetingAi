@@ -514,6 +514,230 @@ export const participantsAPI = {
   },
 };
 
+// ==================== GROUPS ====================
+
+export const groupsAPI = {
+  async getAll(userId: string) {
+    // First get groups where user is a member
+    const { data: memberGroups } = await supabase
+      .from('group_members')
+      .select('group_id')
+      .eq('user_id', userId);
+
+    const memberGroupIds = memberGroups?.map(gm => gm.group_id) || [];
+
+    // Then get all groups user owns or is a member of
+    let query = supabase
+      .from('groups')
+      .select('*, group_members(count)')
+      .order('created_at', { ascending: false });
+
+    if (memberGroupIds.length > 0) {
+      query = query.or(`owner_id.eq.${userId},id.in.(${memberGroupIds.join(',')})`);
+    } else {
+      query = query.eq('owner_id', userId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getById(id: string, userId: string) {
+    const { data, error } = await supabase
+      .from('groups')
+      .select('*, group_members(*)')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async create(group: Database['public']['Tables']['groups']['Insert']) {
+    const { data, error } = await supabase
+      .from('groups')
+      .insert(group)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: string, group: Database['public']['Tables']['groups']['Update'], userId: string) {
+    const { data, error } = await supabase
+      .from('groups')
+      .update(group)
+      .eq('id', id)
+      .eq('owner_id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string, userId: string) {
+    const { error } = await supabase
+      .from('groups')
+      .delete()
+      .eq('id', id)
+      .eq('owner_id', userId);
+
+    if (error) throw error;
+  },
+
+  async addMember(member: Database['public']['Tables']['group_members']['Insert']) {
+    const { data, error } = await supabase
+      .from('group_members')
+      .insert(member)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async updateMember(id: string, member: Database['public']['Tables']['group_members']['Update']) {
+    const { data, error } = await supabase
+      .from('group_members')
+      .update(member)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async removeMember(id: string) {
+    const { error } = await supabase
+      .from('group_members')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
+  async getMembers(groupId: string) {
+    const { data, error } = await supabase
+      .from('group_members')
+      .select('*, users(name, email, avatar, role, department)')
+      .eq('group_id', groupId)
+      .order('hierarchy_level', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+};
+
+// ==================== MEETING ATTENDANCE ====================
+
+export const attendanceAPI = {
+  async recordAttendance(attendance: Database['public']['Tables']['meeting_attendance']['Insert']) {
+    const { data, error } = await supabase
+      .from('meeting_attendance')
+      .upsert(attendance, { onConflict: 'meeting_id,user_id' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getAttendance(meetingId: string) {
+    const { data, error } = await supabase
+      .from('meeting_attendance')
+      .select('*, users(name, email, avatar, role, department)')
+      .eq('meeting_id', meetingId);
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async matchParticipants(meetingId: string, participantNames: string[], groupIds: string[]) {
+    // Get all group members from associated groups
+    const { data: members, error } = await supabase
+      .from('group_members')
+      .select('user_id, users(name, email)')
+      .in('group_id', groupIds);
+
+    if (error) throw error;
+
+    const matches: Array<{ participant_name: string; user_id: string }> = [];
+
+    participantNames.forEach(participantName => {
+      const normalizedParticipant = participantName.toLowerCase().trim();
+
+      const match = members?.find(member => {
+        const userName = member.users?.name?.toLowerCase().trim();
+        const userEmail = member.users?.email?.toLowerCase().trim();
+
+        return userName === normalizedParticipant ||
+               userEmail === normalizedParticipant ||
+               userName?.includes(normalizedParticipant) ||
+               normalizedParticipant.includes(userName || '');
+      });
+
+      if (match) {
+        matches.push({
+          participant_name: participantName,
+          user_id: match.user_id
+        });
+      }
+    });
+
+    // Record attendance for matched participants
+    for (const match of matches) {
+      await this.recordAttendance({
+        meeting_id: meetingId,
+        user_id: match.user_id,
+        participant_name: match.participant_name,
+        attended: true,
+      });
+    }
+
+    return matches;
+  },
+};
+
+// ==================== MEETING GROUPS ====================
+
+export const meetingGroupsAPI = {
+  async associate(meetingId: string, groupId: string) {
+    const { data, error } = await supabase
+      .from('meeting_groups')
+      .insert({ meeting_id: meetingId, group_id: groupId })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getGroups(meetingId: string) {
+    const { data, error } = await supabase
+      .from('meeting_groups')
+      .select('*, groups(*)')
+      .eq('meeting_id', meetingId);
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async remove(meetingId: string, groupId: string) {
+    const { error } = await supabase
+      .from('meeting_groups')
+      .delete()
+      .eq('meeting_id', meetingId)
+      .eq('group_id', groupId);
+
+    if (error) throw error;
+  },
+};
+
 // ==================== ANALYTICS ====================
 
 export const analyticsAPI = {

@@ -253,6 +253,124 @@ export const participantsAPI = {
   },
 };
 
+// ==================== GROUPS ====================
+
+export const groupsAPI = {
+  async getAll(userId: string) {
+    if (useLocalStorage) {
+      // For local storage, implement basic groups storage
+      const groups = JSON.parse(localStorage.getItem(`groups_${userId}`) || '[]');
+      return Promise.resolve(groups);
+    }
+    return supabaseAPI.groupsAPI.getAll(userId);
+  },
+
+  async getById(id: string, userId: string) {
+    if (useLocalStorage) {
+      const groups = JSON.parse(localStorage.getItem(`groups_${userId}`) || '[]');
+      return Promise.resolve(groups.find((g: any) => g.id === id));
+    }
+    return supabaseAPI.groupsAPI.getById(id, userId);
+  },
+
+  async create(group: any) {
+    if (useLocalStorage) {
+      const groups = JSON.parse(localStorage.getItem(`groups_${group.owner_id}`) || '[]');
+      const newGroup = {
+        ...group,
+        id: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      groups.push(newGroup);
+      localStorage.setItem(`groups_${group.owner_id}`, JSON.stringify(groups));
+      return Promise.resolve(newGroup);
+    }
+    return supabaseAPI.groupsAPI.create(group);
+  },
+
+  async update(id: string, group: any, userId: string) {
+    if (useLocalStorage) {
+      const groups = JSON.parse(localStorage.getItem(`groups_${userId}`) || '[]');
+      const index = groups.findIndex((g: any) => g.id === id);
+      if (index >= 0) {
+        groups[index] = { ...groups[index], ...group, updated_at: new Date().toISOString() };
+        localStorage.setItem(`groups_${userId}`, JSON.stringify(groups));
+        return Promise.resolve(groups[index]);
+      }
+      return Promise.reject(new Error('Group not found'));
+    }
+    return supabaseAPI.groupsAPI.update(id, group, userId);
+  },
+
+  async delete(id: string, userId: string) {
+    if (useLocalStorage) {
+      const groups = JSON.parse(localStorage.getItem(`groups_${userId}`) || '[]');
+      const filtered = groups.filter((g: any) => g.id !== id);
+      localStorage.setItem(`groups_${userId}`, JSON.stringify(filtered));
+      return Promise.resolve();
+    }
+    return supabaseAPI.groupsAPI.delete(id, userId);
+  },
+
+  async addMember(member: any) {
+    if (useLocalStorage) {
+      const members = JSON.parse(localStorage.getItem(`group_members_${member.group_id}`) || '[]');
+      const newMember = {
+        ...member,
+        id: crypto.randomUUID(),
+        joined_at: new Date().toISOString(),
+      };
+      members.push(newMember);
+      localStorage.setItem(`group_members_${member.group_id}`, JSON.stringify(members));
+      return Promise.resolve(newMember);
+    }
+    return supabaseAPI.groupsAPI.addMember(member);
+  },
+
+  async updateMember(id: string, member: any) {
+    if (useLocalStorage) {
+      // Find member across all groups
+      const allKeys = Object.keys(localStorage).filter(k => k.startsWith('group_members_'));
+      for (const key of allKeys) {
+        const members = JSON.parse(localStorage.getItem(key) || '[]');
+        const index = members.findIndex((m: any) => m.id === id);
+        if (index >= 0) {
+          members[index] = { ...members[index], ...member };
+          localStorage.setItem(key, JSON.stringify(members));
+          return Promise.resolve(members[index]);
+        }
+      }
+      return Promise.reject(new Error('Member not found'));
+    }
+    return supabaseAPI.groupsAPI.updateMember(id, member);
+  },
+
+  async removeMember(id: string) {
+    if (useLocalStorage) {
+      const allKeys = Object.keys(localStorage).filter(k => k.startsWith('group_members_'));
+      for (const key of allKeys) {
+        const members = JSON.parse(localStorage.getItem(key) || '[]');
+        const filtered = members.filter((m: any) => m.id !== id);
+        if (filtered.length !== members.length) {
+          localStorage.setItem(key, JSON.stringify(filtered));
+          return Promise.resolve();
+        }
+      }
+      return Promise.resolve();
+    }
+    return supabaseAPI.groupsAPI.removeMember(id);
+  },
+
+  async getMembers(groupId: string) {
+    if (useLocalStorage) {
+      const members = JSON.parse(localStorage.getItem(`group_members_${groupId}`) || '[]');
+      return Promise.resolve(members);
+    }
+    return supabaseAPI.groupsAPI.getMembers(groupId);
+  },
+};
+
 // ==================== ANALYTICS ====================
 
 export const analyticsAPI = {

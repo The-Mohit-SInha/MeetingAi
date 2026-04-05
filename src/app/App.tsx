@@ -16,6 +16,7 @@ import { ActionItems } from "./components/ActionItems";
 import { Calendar } from "./components/Calendar";
 import { Analytics } from "./components/Analytics";
 import { Participants } from "./components/Participants";
+import { Groups } from "./components/Groups";
 import { Profile } from "./components/Profile";
 import { Notifications } from "./components/Notifications";
 import { Settings } from "./components/Settings";
@@ -153,6 +154,7 @@ export default function App() {
                 path="participants"
                 element={<Participants />}
               />
+              <Route path="groups" element={<Groups />} />
               <Route path="profile" element={<Profile />} />
               <Route
                 path="notifications"

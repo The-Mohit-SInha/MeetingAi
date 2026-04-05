@@ -1,11 +1,12 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  LayoutDashboard, 
-  Calendar as CalendarIcon, 
-  CheckSquare, 
-  Users, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Calendar as CalendarIcon,
+  CheckSquare,
+  Users,
+  UsersRound,
+  BarChart3,
   Video,
   Search,
   Bell,
@@ -28,6 +29,7 @@ const navigation = [
   { name: "Calendar", href: "/calendar", icon: CalendarIcon },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Participants", href: "/participants", icon: Users },
+  { name: "Groups", href: "/groups", icon: UsersRound },
 ];
 
 export function DashboardLayout() {
