@@ -27,13 +27,14 @@ import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
 import { useLiveMeeting } from "../context/LiveMeetingContext";
 import { meetingsAPI, actionItemsAPI } from "../services/apiWrapper";
-import { recordingsAPI } from "../services/apiWrapper";
+import { recordingsAPI, participantsAPI } from "../services/apiWrapper";
 import { aiProcessingService } from "../services/googleMeetService";
 import { supabase } from "../../lib/supabase";
 import { transcribeAudioBlob } from "../services/localTranscriptionService";
 import { transcribeWithGroq, isGroqConfigured } from "../services/groqTranscriptionService";
 import { transcribeWithGroqDirect, convertToAudioBlob } from "../services/groqDirectService";
 import { generateMeetingSummary, generateMeetingTitle } from "../services/groqLLMService";
+import { transcribeWithSpeakerDiarization, saveParticipantsToMeeting, formatTranscriptWithSpeakers, extractActionItemsFromTranscript } from "../services/speakerDiarizationService";
 import { RecordingDiagnostic } from "./RecordingDiagnostic";
 import { AudioLevelIndicator } from "./AudioLevelIndicator";
 
@@ -678,38 +679,56 @@ export function Meetings() {
       }
       console.log('📝 Final transcript length:', finalTranscript.length, 'chars');
 
-      // Generate AI summary and extract action items if we have a transcript
+      // Process audio with speaker diarization
       let aiSummary = '';
       let extractedActions: any[] = [];
       let generatedTitle = title;
+      let participants: string[] = [];
+      let formattedTranscript = finalTranscript;
 
       if (finalTranscript && finalTranscript.trim().length > 0) {
         try {
+          // Use speaker diarization to identify speakers and extract participants
+          setTranscriptionProgress('🎤 Identifying speakers...');
+          console.log('🎤 Processing speaker diarization...');
+
+          // Create audio blob from chunks for speaker analysis
+          const audioBlob = new Blob(audioChunks, { type: audioChunks[0]?.type || 'audio/webm' });
+
+          const diarizationResult = await transcribeWithSpeakerDiarization(audioBlob);
+
+          // Use diarization results
+          formattedTranscript = diarizationResult.transcript;
+          participants = diarizationResult.participants;
+          extractedActions = diarizationResult.actionItems;
+
+          console.log('✅ Speaker diarization complete:', {
+            participantsCount: participants.length,
+            participants: participants,
+            actionItemsCount: extractedActions.length,
+          });
+
           // Generate meeting title from transcript if using default title
           if (!recordingTitle || recordingTitle.trim().length === 0) {
             setTranscriptionProgress('🤖 Generating meeting title...');
             console.log('📝 Generating AI-powered meeting title...');
-            generatedTitle = await generateMeetingTitle(finalTranscript);
+            generatedTitle = await generateMeetingTitle(formattedTranscript);
             console.log('✅ Generated title:', generatedTitle);
           }
 
-          setTranscriptionProgress('🤖 Generating summary and extracting action items...');
+          setTranscriptionProgress('🤖 Generating summary...');
           console.log('🤖 Generating meeting summary with AI...');
 
-          const summaryResult = await generateMeetingSummary(finalTranscript, generatedTitle);
-
+          const summaryResult = await generateMeetingSummary(formattedTranscript, generatedTitle);
           aiSummary = summaryResult.summary;
-          extractedActions = summaryResult.actionItems;
 
           console.log('✅ AI Summary generated:', {
             summary: aiSummary.substring(0, 100),
-            actionItemsCount: extractedActions.length,
-            keyPointsCount: summaryResult.keyPoints.length,
           });
 
           setTranscriptionProgress('');
         } catch (summaryErr: any) {
-          console.error('⚠️ AI summary generation failed:', summaryErr);
+          console.error('⚠️ AI processing failed:', summaryErr);
           // Continue without AI summary
           aiSummary = finalTranscript.substring(0, 200) + (finalTranscript.length > 200 ? '...' : '');
         }
@@ -721,14 +740,25 @@ export function Meetings() {
         time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
         duration: `${Math.ceil(recordingTime / 60)} min`,
         status: 'completed',
-        summary: aiSummary || (finalTranscript
-          ? finalTranscript.substring(0, 200) + (finalTranscript.length > 200 ? '...' : '')
+        summary: aiSummary || (formattedTranscript
+          ? formattedTranscript.substring(0, 200) + (formattedTranscript.length > 200 ? '...' : '')
           : `${sourceLabel} – ${Math.ceil(recordingTime / 60)} min captured.`),
-        transcript: finalTranscript || '[No speech detected during recording.]',
+        transcript: formattedTranscript || '[No speech detected during recording.]',
         location: sourceLabel,
         recording_url: null,
         user_id: user?.id,
       }, []);
+
+      // Save participants to database
+      if (participants.length > 0 && meetingData?.id && user) {
+        try {
+          console.log(`👥 Saving ${participants.length} participants...`);
+          await saveParticipantsToMeeting(meetingData.id, participants, user.id);
+          console.log('✅ Participants saved successfully');
+        } catch (participantsErr: any) {
+          console.error('⚠️ Failed to save participants:', participantsErr);
+        }
+      }
 
       // Create extracted action items
       if (extractedActions.length > 0 && meetingData?.id && user) {
@@ -742,7 +772,7 @@ export function Meetings() {
 
           for (const action of extractedActions) {
             await actionItemsAPI.create({
-              title: action.title,
+              title: action.task || action.title,
               description: action.description || '',
               meeting_id: meetingData.id,
               status: 'todo',

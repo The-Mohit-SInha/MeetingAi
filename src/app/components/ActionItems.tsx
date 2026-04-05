@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../context/AuthContext";
-import { actionItemsAPI } from "../services/apiWrapper";
+import { actionItemsAPI, participantsAPI } from "../services/apiWrapper";
 
 const priorityConfig = {
   high: { color: "from-red-500 to-pink-500", icon: AlertCircle, label: "High" },
@@ -30,10 +30,12 @@ export function ActionItems() {
   const [actionItems, setActionItems] = useState<any[]>([]);
   const [editingAction, setEditingAction] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+  const [participants, setParticipants] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
       fetchActionItems();
+      fetchParticipants();
     }
   }, [user]);
 
@@ -62,6 +64,18 @@ export function ActionItems() {
       setActionItems([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchParticipants = async () => {
+    if (!user) return;
+    try {
+      const data = await participantsAPI.getAll(user.id);
+      const uniqueNames = Array.from(new Set(data.map((p: any) => p.participant_name || p.name).filter(Boolean)));
+      setParticipants(uniqueNames);
+    } catch (error) {
+      console.error("Error fetching participants:", error);
+      setParticipants([]);
     }
   };
 
@@ -389,8 +403,7 @@ export function ActionItems() {
                       <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
                         Assignee
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={editForm.assignee}
                         onChange={(e) => setEditForm({ ...editForm, assignee: e.target.value })}
                         className={`w-full px-3 py-2 rounded-lg text-sm ${
@@ -398,7 +411,33 @@ export function ActionItems() {
                             ? 'bg-gray-800 text-white border-gray-700'
                             : 'bg-white text-gray-900 border-gray-300'
                         } border`}
-                      />
+                      >
+                        {participants.length > 0 ? (
+                          <>
+                            <option value="">Select participant...</option>
+                            {participants.map((participant) => (
+                              <option key={participant} value={participant}>
+                                {participant}
+                              </option>
+                            ))}
+                            <option value="__custom__">Custom (type below)</option>
+                          </>
+                        ) : (
+                          <option value="">No participants found</option>
+                        )}
+                      </select>
+                      {editForm.assignee === '__custom__' && (
+                        <input
+                          type="text"
+                          placeholder="Enter assignee name"
+                          onChange={(e) => setEditForm({ ...editForm, assignee: e.target.value })}
+                          className={`w-full px-3 py-2 rounded-lg text-sm mt-2 ${
+                            theme === 'dark'
+                              ? 'bg-gray-800 text-white border-gray-700'
+                              : 'bg-white text-gray-900 border-gray-300'
+                          } border`}
+                        />
+                      )}
                     </div>
                     <div>
                       <label className={`text-xs font-semibold mb-1 block ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
