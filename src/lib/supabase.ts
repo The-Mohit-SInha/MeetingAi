@@ -122,7 +122,7 @@ export interface Database {
         Row: {
           id: string;
           user_id: string;
-          type: 'action' | 'meeting' | 'mention' | 'alert' | 'info';
+          type: 'action' | 'meeting' | 'mention' | 'alert' | 'info' | 'group_invite' | 'group_member_added' | 'group_created';
           title: string;
           message: string;
           is_read: boolean;

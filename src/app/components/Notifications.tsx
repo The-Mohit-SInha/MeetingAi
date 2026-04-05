@@ -12,7 +12,9 @@ import {
   Bell,
   Loader2,
   Check,
-  Trash2
+  Trash2,
+  Users,
+  UserPlus
 } from "lucide-react";
 
 export function Notifications() {
@@ -48,6 +50,9 @@ export function Notifications() {
         mention: MessageSquare,
         alert: AlertCircle,
         info: Info,
+        group_invite: UserPlus,
+        group_member_added: Users,
+        group_created: Users,
       };
 
       const colorMap: any = {
@@ -56,6 +61,9 @@ export function Notifications() {
         mention: 'purple',
         alert: 'red',
         info: 'gray',
+        group_invite: 'blue',
+        group_member_added: 'purple',
+        group_created: 'green',
       };
 
       setNotifications(data.map((n: any) => ({

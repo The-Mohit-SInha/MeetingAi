@@ -571,6 +571,57 @@ export const recordingsAPI = {
   },
 };
 
+// ==================== MEETING GROUPS ====================
+
+export const meetingGroupsAPI = {
+  async associate(meetingId: string, groupId: string) {
+    if (useLocalStorage) {
+      // For local storage, just return a mock response
+      return Promise.resolve({ id: 'local-' + Date.now(), meeting_id: meetingId, group_id: groupId });
+    }
+    return supabaseAPI.meetingGroupsAPI.associate(meetingId, groupId);
+  },
+
+  async getGroups(meetingId: string) {
+    if (useLocalStorage) {
+      return Promise.resolve([]);
+    }
+    return supabaseAPI.meetingGroupsAPI.getGroups(meetingId);
+  },
+
+  async remove(meetingId: string, groupId: string) {
+    if (useLocalStorage) {
+      return Promise.resolve();
+    }
+    return supabaseAPI.meetingGroupsAPI.remove(meetingId, groupId);
+  },
+};
+
+// ==================== ATTENDANCE ====================
+
+export const attendanceAPI = {
+  async recordAttendance(attendance: any) {
+    if (useLocalStorage) {
+      return Promise.resolve({ id: 'local-' + Date.now(), ...attendance });
+    }
+    return supabaseAPI.attendanceAPI.recordAttendance(attendance);
+  },
+
+  async getAttendance(meetingId: string) {
+    if (useLocalStorage) {
+      return Promise.resolve([]);
+    }
+    return supabaseAPI.attendanceAPI.getAttendance(meetingId);
+  },
+
+  async matchParticipants(meetingId: string, participantNames: string[], groupIds: string[]) {
+    if (useLocalStorage) {
+      return Promise.resolve([]);
+    }
+    return supabaseAPI.attendanceAPI.matchParticipants(meetingId, participantNames, groupIds);
+  },
+};
+
 // Helper to get current user ID
 export const getCurrentUserId = () => getUserId();
 
